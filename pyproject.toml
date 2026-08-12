@@ -32,7 +32,7 @@ dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/Senophyx/discord-rpc"
-Documentation = "https://github.com/Senophyx/Discord-RPC/blob/main/DOCS.md"
+Documentation = "https://github.com/Senophyx/discord-rpc/blob/main/DOCS.md"
 "Issue tracker" = "https://github.com/Senophyx/discord-rpc/issues"
 Discord = "https://discord.gg/qpT2AeYZRN"
 

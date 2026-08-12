@@ -25,10 +25,10 @@ pip install discord-rpc
 
 ## Quick Start
 
-Step-by-step making simple rich presence using Discord-RPC.
+Step-by-step making simple rich presence using discord-rpc.
 
-1. Make sure Discord-RPC is installed.
-2. Import Discord-RPC
+1. Make sure discord-rpc is installed.
+2. Import discord-rpc
    ```py
    import discordrpc
    ```
@@ -481,7 +481,7 @@ rpc.run()
 ---
 
 ## Links
-- [GitHub](https://github.com/Senophyx/Discord-RPC)
+- [GitHub](https://github.com/Senophyx/discord-rpc)
 - [PyPI](https://pypi.org/project/discord-rpc/)
 - [TestPyPI](https://test.pypi.org/project/discord-rpc/)
 - [Discord](https://discord.gg/qpT2AeYZRN)

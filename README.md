@@ -1,4 +1,4 @@
-[![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FSenophyx%2FDiscord-RPC&label=Visitors&countColor=%2337d67a&style=flat&labelStyle=none)](https://github.com/Senophyx/Discord-RPC)
+[![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FSenophyx%2Fdiscord-rpc&label=Visitors&countColor=%2337d67a&style=flat&labelStyle=none)](https://github.com/Senophyx/discord-rpc)
 [![Discord](https://img.shields.io/discord/887650006977347594?label=EterNomm&logo=discord)](https://discord.gg/qpT2AeYZRN)
 [![Total Downloads](https://static.pepy.tech/badge/discord-rpc)](https://pepy.tech/project/discord-rpc)
 [![PyPI](https://img.shields.io/pypi/v/discord-rpc?label=PyPI%20Version&logo=pypi)](https://pypi.org/project/discord-rpc)
@@ -41,22 +41,22 @@ More examples [here](https://github.com/Senophyx/discord-rpc/tree/main/examples)
 ## Contributors
 Big thanks for contributors who help this project keep updated, and maintained.
 
-<a href="https://github.com/senophyx/Discord-RPC/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=senophyx/Discord-RPC&columns=5" />
+<a href="https://github.com/senophyx/discord-rpc/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=senophyx/discord-rpc&columns=5" />
 </a>
 
 <!-- Made with [contrib.rocks](https://contrib.rocks). -->
 
 ## Links
-- [Github Repository](https://github.com/Senophyx/Discord-RPC)
+- [Github Repository](https://github.com/Senophyx/discord-rpc)
 - [PyPI Project page](https://pypi.org/project/discord-rpc/)
 - [TestPyPI Project page](https://test.pypi.org/project/discord-rpc/)
 - [Discord Server](https://discord.gg/qpT2AeYZRN)
-- [Initial commit](https://github.com/Senophyx/Discord-RPC/commit/da720b6f95c541a412bb382620071f26c9e97471)
+- [Initial commit](https://github.com/Senophyx/discord-rpc/commit/da720b6f95c541a412bb382620071f26c9e97471)
 
 ## Star History
 
-<img src='media/star-history-202687.png' alt='Discord-RPC star history 2026-08-07'>
+<img src='media/star-history-202687.png' alt='discord-rpc star history 2026-08-07'>
 
 > Last updated 2026-08-07
 

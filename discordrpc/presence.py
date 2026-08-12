@@ -106,7 +106,7 @@ class RPC:
         if type(act_type) != Activity:
             raise InvalidActivityType(type(act_type))
 
-        # https://github.com/Senophyx/Discord-RPC/issues/28#issuecomment-2301287350
+        # https://github.com/Senophyx/discord-rpc/issues/28#issuecomment-2301287350
         if act_type in [Activity.Streaming, Activity.Custom]:
             raise ActivityTypeDisabled()
 

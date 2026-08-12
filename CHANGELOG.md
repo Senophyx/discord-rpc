@@ -10,22 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [6.5] - 2026-08-05
 
 ### Added
-- Cross-platform event subscriptions with `Event` enum and `@rpc.on()` decorator (PR [#66](https://github.com/Senophyx/Discord-RPC/pull/66) by @SuperZombi)
-- `AssetManager` with `RPC.assets` property and `.get()` / `.names` for fetching Discord application assets (PR [#60](https://github.com/Senophyx/Discord-RPC/pull/60) by @SuperZombi)
+- Cross-platform event subscriptions with `Event` enum and `@rpc.on()` decorator (PR [#66](https://github.com/Senophyx/discord-rpc/pull/66) by @SuperZombi)
+- `AssetManager` with `RPC.assets` property and `.get()` / `.names` for fetching Discord application assets (PR [#60](https://github.com/Senophyx/discord-rpc/pull/60) by @SuperZombi)
 - `Asset` object support in `set_activity()` — pass `rpc.assets.get("key")` directly as `large_image` / `small_image`
 - `utils.get_assets(app_id)` function to fetch assets without initializing `RPC`
-- `RPC.connected` read-only property as alias for `self.ipc.connected` (PR [#63](https://github.com/Senophyx/Discord-RPC/pull/63) by @SuperZombi)
+- `RPC.connected` read-only property as alias for `self.ipc.connected` (PR [#63](https://github.com/Senophyx/discord-rpc/pull/63) by @SuperZombi)
 - `InvalidEvent` and `InvalidEventType` exceptions exported from the package root
 - `utils.required_url()` for validating required button URLs
 - `examples/rpc-events.py` showing event subscription usage
-- `User.avatar_decoration` and `Application.cover` CDN URLs (PR [#67](https://github.com/Senophyx/Discord-RPC/pull/67) by @SuperZombi)
+- `User.avatar_decoration` and `Application.cover` CDN URLs (PR [#67](https://github.com/Senophyx/discord-rpc/pull/67) by @SuperZombi)
 
 ### Changed
 - IPC reads now preserve the opcode and route responses by nonce through a single background reader
 - Windows imports are now loaded only on Windows; the blocking reader no longer needs `msvcrt` or `win32pipe`
 - URL validation now checks the scheme and host instead of only a prefix
 - `set_activity()` now validates button URLs client-side
-- Bumped GitHub Actions versions: `checkout@v4→v6`, `setup-python@v4→v6` (PR [#62](https://github.com/Senophyx/Discord-RPC/pull/62) by @SuperZombi)
+- Bumped GitHub Actions versions: `checkout@v4→v6`, `setup-python@v4→v6` (PR [#62](https://github.com/Senophyx/discord-rpc/pull/62) by @SuperZombi)
 - Link badges in `README.md` now point to local `CHANGELOG.md` and `DOCS.md` instead of `senophyx.id`
 - `DOCS.md` documentation URL in `pyproject.toml` updated to point to GitHub
 
@@ -49,12 +49,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [6.0] - 2026-07-21
 
 ### Added
-- `name` parameter to `RPC.set_activity()` (optional, falls back to Discord application name if not provided) (PR [#58](https://github.com/Senophyx/Discord-RPC/pull/58) by @SuperZombi)
+- `name` parameter to `RPC.set_activity()` (optional, falls back to Discord application name if not provided) (PR [#58](https://github.com/Senophyx/discord-rpc/pull/58) by @SuperZombi)
 - `ping_every` parameter to `RPC.run()` for configurable OP_PING heartbeat interval
 - External URL image support for `large_image` and `small_image` (direct HTTP URLs now supported alongside asset keys)
 
 ### Changed
-- `User` and `App` refactored from instance attributes to `@cached_property` -- lazy-loaded and read-only after first access (PR [#58](https://github.com/Senophyx/Discord-RPC/pull/58) by @SuperZombi)
+- `User` and `App` refactored from instance attributes to `@cached_property` -- lazy-loaded and read-only after first access (PR [#58](https://github.com/Senophyx/discord-rpc/pull/58) by @SuperZombi)
 - `RPC.get_app_info()` method removed; access application info via `rpc.App` property directly
 - Activity payload building inlined from `_build_activity()` back into `set_activity()` for simplicity
 - Shared pipe connection logic extracted into `_BasePipe` class, eliminating DRY violations between `WindowsPipe` and `UnixPipe`
@@ -83,7 +83,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [5.6] - 2026-06-14
 
 ### Added
-- `Application` info fetching via `rpc.get_app_info()` and `utils.get_app_info()` (PR [#57](https://github.com/Senophyx/Discord-RPC/pull/57) by @SuperZombi & @Senophyx)
+- `Application` info fetching via `rpc.get_app_info()` and `utils.get_app_info()` (PR [#57](https://github.com/Senophyx/discord-rpc/pull/57) by @SuperZombi & @Senophyx)
 - `pyproject.toml` licensing metadata
 
 ### Changed
@@ -94,18 +94,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated documentation links and styling across the project
 
 ### Fixed
-- `importlib.metadata.PackageNotFoundError` when package is not installed (PR [#56](https://github.com/Senophyx/Discord-RPC/pull/56) by @deeffest)
+- `importlib.metadata.PackageNotFoundError` when package is not installed (PR [#56](https://github.com/Senophyx/discord-rpc/pull/56) by @deeffest)
 - Typing and license metadata in `pyproject.toml`
 
 ## [5.5] - 2025-10-23
 
 ### Added
-- New `ActivityType` class and type system enhancements (PR [#49](https://github.com/Senophyx/Discord-RPC/pull/49) by @SuperZombi)
-- New parameters and types for `set_activity()` (PR [#50](https://github.com/Senophyx/Discord-RPC/pull/50) by @SuperZombi)
-- Additional missing types (PR [#53](https://github.com/Senophyx/Discord-RPC/pull/53) by @jannuary)
+- New `ActivityType` class and type system enhancements (PR [#49](https://github.com/Senophyx/discord-rpc/pull/49) by @SuperZombi)
+- New parameters and types for `set_activity()` (PR [#50](https://github.com/Senophyx/discord-rpc/pull/50) by @SuperZombi)
+- Additional missing types (PR [#53](https://github.com/Senophyx/discord-rpc/pull/53) by @jannuary)
 
 ### Changed
-- Migrated from `setup.py` to PEP 621 compliant `pyproject.toml` ([0ffaca5](https://github.com/Senophyx/Discord-RPC/commit/0ffaca5bbf941a1435defac789c966a8d7d3ad5c))
+- Migrated from `setup.py` to PEP 621 compliant `pyproject.toml` ([0ffaca5](https://github.com/Senophyx/discord-rpc/commit/0ffaca5bbf941a1435defac789c966a8d7d3ad5c))
 - Button class rewritten with improved implementation
 
 ### Fixed

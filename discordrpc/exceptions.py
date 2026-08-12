@@ -46,7 +46,7 @@ class InvalidEventType(RPCException):
     def __init__(self, message):
         super().__init__(f"Event type must be <Event>, not {message}")
 
-# https://github.com/Senophyx/Discord-RPC/issues/28#issuecomment-2301287350
+# https://github.com/Senophyx/discord-rpc/issues/28#issuecomment-2301287350
 class ActivityTypeDisabled(RPCException):
     def __init__(self):
-        super().__init__(f"Activity type `Streaming` and `Custom` currently disabled. See https://github.com/Senophyx/Discord-RPC/issues/28#issuecomment-2301287350")
+        super().__init__(f"Activity type `Streaming` and `Custom` currently disabled. See https://github.com/Senophyx/discord-rpc/issues/28#issuecomment-2301287350")
