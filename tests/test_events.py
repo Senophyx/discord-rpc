@@ -135,7 +135,7 @@ class ReaderLifecycleTests(unittest.TestCase):
         self.assertTrue(thread.is_alive())
         rpc.ipc._reader_stop.set()
         rpc.ipc._close()
-        time.sleep(0.2)
+        thread.join(timeout=2)
         self.assertFalse(thread.is_alive())
 
     def test_stop_reader_when_last_subscription_removed(self):
@@ -149,7 +149,7 @@ class ReaderLifecycleTests(unittest.TestCase):
             rpc._subscriptions.discard("ACTIVITY_JOIN")
         rpc._stop_reader_if_idle()
         rpc.ipc._close()
-        time.sleep(0.2)
+        thread.join(timeout=2)
         self.assertFalse(thread.is_alive())
 
     def test_stop_reader_marks_pipe_disconnected(self):
@@ -161,7 +161,7 @@ class ReaderLifecycleTests(unittest.TestCase):
         with rpc._state_lock:
             rpc._subscriptions.discard("ACTIVITY_JOIN")
         rpc._stop_reader_if_idle()
-        time.sleep(0.2)
+        thread.join(timeout=2)
         self.assertFalse(thread.is_alive())
         # The pipe must be marked disconnected so a later set_activity() can reconnect.
         self.assertFalse(rpc.ipc.connected)
