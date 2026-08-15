@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Breaking
+- `utils.timestamp` is now a function, not a variable. Update `timestamp` to `timestamp()` in your code.
+
 ### Fixed
 - `run()` now exits its loop when the heartbeat PING fails, instead of hanging forever when `exit_on_disconnect=False`
 - `subscribe()` and `unsubscribe()` now attempt to reconnect when the pipe is disconnected, instead of silently returning `None` (this happened after the reader stopped idle following the last unsubscribe)
@@ -17,7 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - IPC reader now marks the pipe as disconnected when the socket is closed by Discord (EOF) or an `OP_CLOSE` frame with an empty payload is received, instead of stopping silently while `connected` stays `True`
 
 ### Changed
-- **BREAKING**: `utils.timestamp` is now a function, not a variable. Update `timestamp` to `timestamp()` in your code.
 - `ButtonError` and `ProgressbarError` no longer define redundant constructors
 - `date_to_timestamp()` now uses `datetime.timestamp()` instead of `time.mktime()`
 - `get_app_info()` and `get_assets()` now share a single fetch helper
