@@ -618,7 +618,10 @@ class UnixPipe(_BasePipe):
         self.socket.sendall(data)
 
     def _close(self):
-        self.socket.shutdown(socket.SHUT_RDWR)
+        try:
+            self.socket.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
         self.socket.close()
 
     def _read_some(self, size: int) -> bytes:

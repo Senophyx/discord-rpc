@@ -18,5 +18,14 @@ class UnixPipeConnectTests(unittest.TestCase):
             self.assertFalse(pipe._connect_pipe())
 
 
+class UnixPipeCloseTests(unittest.TestCase):
+    def test_close_with_peer_already_closed_does_not_raise(self):
+        a, b = socket.socketpair()
+        b.close()  # peer (Discord) closed first
+        pipe = UnixPipe("1", False, False)
+        pipe.socket = a
+        pipe._close()  # must not raise
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
