@@ -382,6 +382,7 @@ rpc.unsubscribe(Event.JOIN)
 
 - `disconnect()` clears all subscriptions and callbacks.
 - After a reconnect, call `subscribe()` again if you want events.
+- `subscribe()` and `unsubscribe()` automatically attempt to reconnect when the pipe is disconnected (e.g. after the reader stops idle following the last unsubscribe).
 
 ---
 
