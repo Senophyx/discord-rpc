@@ -27,9 +27,7 @@ timestamp = int(time.mktime(time.localtime()))
 
 
 def date_to_timestamp(date:str):
-    return int(time.mktime(
-        datetime.strptime(date, "%d/%m/%Y-%H:%M:%S").timetuple()
-    ))
+    return int(datetime.strptime(date, "%d/%m/%Y-%H:%M:%S").timestamp())
 
 def _validate_url(url, required: bool):
     if url is None:
