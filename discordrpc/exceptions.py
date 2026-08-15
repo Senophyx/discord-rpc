@@ -27,12 +27,10 @@ class InvalidID(RPCException):
         super().__init__("Invalid ID, is the ID correct? Get Application ID on https://discord.com/developers/applications")
 
 class ButtonError(RPCException):
-    def __init__(self, message: str = None):
-        super().__init__(message=message)
+    pass
 
 class ProgressbarError(RPCException):
-    def __init__(self, message):
-        super().__init__(message=message)
+    pass
 
 class InvalidActivityType(RPCException):
     def __init__(self, message):
