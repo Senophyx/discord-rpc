@@ -407,10 +407,15 @@ class _BasePipe:
                 frame = self._read_frame()
             except Exception as e:
                 log.debug(f"IPC reader stopping: {e}")
+                self.connected = False
                 break
             if frame is None:
                 continue
             opcode, payload = frame
+            if opcode == OP_CLOSE:
+                log.debug("Received OP_CLOSE from Discord")
+                self.connected = False
+                break
             if payload is None:
                 continue
             if not isinstance(payload, dict):
@@ -429,10 +434,6 @@ class _BasePipe:
                 if payload.get("cmd") == "DISPATCH":
                     self._on_event(payload.get("evt"), payload.get("data") or {})
                 continue
-            if opcode == OP_CLOSE:
-                log.debug("Received OP_CLOSE from Discord")
-                self.connected = False
-                break
 
     def _on_event(self, evt, data):
         """Override in subclass or by RPC to dispatch events."""

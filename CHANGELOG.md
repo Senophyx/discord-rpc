@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `subscribe()` and `unsubscribe()` now attempt to reconnect when the pipe is disconnected, instead of silently returning `None` (this happened after the reader stopped idle following the last unsubscribe)
 - `progress_bar()` now raises `ProgressbarError` when `current` is negative or `duration` is zero/negative
 - `AssetManager()` no longer raises `TypeError` when constructed without an asset list
+- IPC reader now marks the pipe as disconnected when the socket is closed by Discord (EOF) or an `OP_CLOSE` frame with an empty payload is received, instead of stopping silently while `connected` stays `True`
 
 ## [6.5] - 2026-08-05
 
