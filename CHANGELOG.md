@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AssetManager()` no longer raises `TypeError` when constructed without an asset list
 - IPC reader now marks the pipe as disconnected when the socket is closed by Discord (EOF) or an `OP_CLOSE` frame with an empty payload is received, instead of stopping silently while `connected` stays `True`
 
+### Changed
+- **BREAKING**: `utils.timestamp` is now a function, not a variable. Update `timestamp` to `timestamp()` in your code.
+
 ## [6.5] - 2026-08-05
 
 ### Added

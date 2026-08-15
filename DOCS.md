@@ -234,7 +234,7 @@ from discordrpc import utils
 
 ### `utils.timestamp`
 ```python
-timestamp -> int
+def timestamp() -> int
 ```
 Returns the current time in epoch timestamp.
 

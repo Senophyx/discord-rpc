@@ -23,7 +23,8 @@ def remove_none(d: dict):
     return d
 
 
-timestamp = int(time.mktime(time.localtime()))
+def timestamp() -> int:
+    return int(time.time())
 
 
 def date_to_timestamp(date:str):
