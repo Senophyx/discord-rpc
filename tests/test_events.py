@@ -219,6 +219,10 @@ class ReconnectTests(unittest.TestCase):
         # the next subscribe/set_activity).
         self.assertFalse(rpc.ipc.connected)
 
+    def test_unsubscribe_not_subscribed_returns_false(self):
+        rpc = make_rpc()
+        self.assertFalse(rpc.unsubscribe(Event.JOIN))
+
     def test_disconnect_clears_state_when_pipe_already_disconnected(self):
         rpc = make_rpc()
         rpc.is_running = True

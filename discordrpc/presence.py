@@ -258,7 +258,7 @@ class RPC:
         with self._state_lock:
             if event not in self._subscriptions:
                 log.error(f"Event {event} not subscribed")
-                return
+                return False
 
         payload = {"cmd": "UNSUBSCRIBE", "args": {}, "evt": event, "nonce": str(uuid.uuid4())}
         res = self.ipc._request(payload)
