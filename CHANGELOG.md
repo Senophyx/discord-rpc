@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **BREAKING**: `utils.timestamp` is now a function, not a variable. Update `timestamp` to `timestamp()` in your code.
+- `ButtonError` and `ProgressbarError` no longer define redundant constructors
+- `date_to_timestamp()` now uses `datetime.timestamp()` instead of `time.mktime()`
+- `get_app_info()` and `get_assets()` now share a single fetch helper
 
 ## [6.5] - 2026-08-05
 
