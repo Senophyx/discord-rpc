@@ -198,5 +198,49 @@ class DuplicateHandlerTests(unittest.TestCase):
         self.assertTrue(rpc.subscribe(Event.JOIN))
 
 
+class ReconnectTests(unittest.TestCase):
+    def test_subscribe_reconnects_when_pipe_disconnected(self):
+        rpc = make_rpc()
+        rpc.ipc.connected = False
+        rpc._setup = lambda: setattr(rpc.ipc, "connected", True)
+        self.assertTrue(rpc.subscribe(Event.JOIN))
+        self.assertTrue(rpc.ipc.connected)
+
+    def test_unsubscribe_reconnects_when_pipe_disconnected(self):
+        rpc = make_rpc()
+        with rpc._state_lock:
+            rpc._subscriptions.add("ACTIVITY_JOIN")
+            rpc._event_callbacks["ACTIVITY_JOIN"] = []
+        rpc.ipc.connected = False
+        rpc._setup = lambda: setattr(rpc.ipc, "connected", True)
+        self.assertTrue(rpc.unsubscribe(Event.JOIN))
+        # After the last unsubscribe the reader stops idle and the pipe is
+        # marked disconnected again, which is expected (reconnect happens on
+        # the next subscribe/set_activity).
+        self.assertFalse(rpc.ipc.connected)
+
+    def test_run_exits_after_heartbeat_failure(self):
+        rpc = make_rpc()
+        calls = []
+
+        def fail_send(payload, op=1):
+            raise RuntimeError("boom")
+
+        def spy_disconnect():
+            calls.append("disconnect")
+            RPC.disconnect(rpc)
+
+        rpc.ipc._send = fail_send
+        rpc.disconnect = spy_disconnect
+
+        thread = threading.Thread(
+            target=rpc.run, kwargs={"update_every": 0.05, "ping_every": 0.1}, daemon=True
+        )
+        thread.start()
+        thread.join(timeout=2)
+        self.assertFalse(thread.is_alive())
+        self.assertIn("disconnect", calls)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
