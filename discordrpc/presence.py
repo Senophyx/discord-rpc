@@ -601,7 +601,7 @@ class UnixPipe(_BasePipe):
             try:
                 self.socket.connect(path)
                 break
-            except FileNotFoundError:
+            except OSError:
                 pass
 
         else:
