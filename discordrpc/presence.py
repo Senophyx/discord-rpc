@@ -222,6 +222,9 @@ class RPC:
     def subscribe(self, event) -> Optional[bool]:
         event = self._normalize_event(event)
 
+        if not self.ipc.connected and self.try_reconnecting:
+            self._setup()
+
         if not self.ipc.connected:
             return
 
@@ -244,6 +247,9 @@ class RPC:
 
     def unsubscribe(self, event) -> Optional[bool]:
         event = self._normalize_event(event)
+
+        if not self.ipc.connected and self.try_reconnecting:
+            self._setup()
 
         if not self.ipc.connected:
             return

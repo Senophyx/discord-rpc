@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `run()` now exits its loop when the heartbeat PING fails, instead of hanging forever when `exit_on_disconnect=False`
+- `subscribe()` and `unsubscribe()` now attempt to reconnect when the pipe is disconnected, instead of silently returning `None` (this happened after the reader stopped idle following the last unsubscribe)
 
 ## [6.5] - 2026-08-05
 
