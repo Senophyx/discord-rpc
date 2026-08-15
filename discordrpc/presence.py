@@ -315,6 +315,7 @@ class RPC:
                     except Exception as e:
                         log.error(f"Heartbeat PING failed: {e}")
                         self.disconnect()
+                        break
         except KeyboardInterrupt:
             self.disconnect()
 
