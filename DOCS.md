@@ -143,7 +143,7 @@ Clears the current activity without disconnecting.
 def disconnect(): -> None
 ```
 
-Closes the IPC socket and marks the client as disconnected.
+Closes the IPC socket, clears subscriptions and callbacks, and marks the client as disconnected.
 
 ---
 
@@ -367,6 +367,7 @@ rpc.unsubscribe(Event.JOIN)
 ```
 
 - `subscribe()` / `unsubscribe()` accept either an `Event` member or a valid event string.
+- `unsubscribe()` returns `False` when the event is not currently subscribed.
 - An unknown event name raises `InvalidEvent`.
 - A non-string, non-enum value raises `InvalidEventType`.
 - The `@rpc.on()` decorator raises `RPCException` if the subscription is rejected by Discord.

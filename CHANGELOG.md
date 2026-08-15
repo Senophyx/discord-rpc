@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `utils.timestamp` is now a function, not a variable. Update `timestamp` to `timestamp()` in your code.
 
 ### Fixed
+- `disconnect()` now clears `is_running`, subscriptions, and callbacks even when the pipe was already disconnected
+- Unix pipe connect now falls back cleanly on any socket error (not just missing pipe)
+- `unsubscribe()` now returns `False` (instead of `None`) when the event is not subscribed
+- Unix pipe close no longer raises when Discord already closed the socket
 - `run()` now exits its loop when the heartbeat PING fails, instead of hanging forever when `exit_on_disconnect=False`
 - `subscribe()` and `unsubscribe()` now attempt to reconnect when the pipe is disconnected, instead of silently returning `None` (this happened after the reader stopped idle following the last unsubscribe)
 - `progress_bar()` now raises `ProgressbarError` when `current` is negative or `duration` is zero/negative
