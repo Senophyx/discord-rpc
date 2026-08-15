@@ -254,7 +254,7 @@ Returns a `ts_start` payload starting from midnight today.
 ```python
 def progress_bar(current: int, duration: int) -> dict
 ```
-Returns `ts_start` and `ts_end` based on progress. Raises `ProgressbarError` if current > duration.
+Returns `ts_start` and `ts_end` based on progress. Raises `ProgressbarError` if `current` is negative, `duration` is zero or negative, or `current > duration`.
 
 ### `utils.get_app_info`
 ```python

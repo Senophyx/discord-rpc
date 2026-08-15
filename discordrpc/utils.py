@@ -57,11 +57,16 @@ def use_local_time():
     }
 
 def progress_bar(current:int, duration:int) -> dict:
-    if int(current) > int(duration):
+    current, duration = int(current), int(duration)
+    if current < 0:
+        raise ProgressbarError("Current cannot be negative")
+    if duration <= 0:
+        raise ProgressbarError("Duration must be greater than zero")
+    if current > duration:
         raise ProgressbarError("Current cannot exceed Duration")
     
-    current_time = int(time.time()) - int(current)
-    finish_time = current_time + int(duration)
+    current_time = int(time.time()) - current
+    finish_time = current_time + duration
 
     return {
         "ts_start": current_time, "ts_end": finish_time
