@@ -200,14 +200,15 @@ class RPC:
         self.set_activity(clear=True)
 
     def disconnect(self):
-        if not self.ipc.connected:
-            return
-
-        self.ipc.disconnect()
         self.is_running = False
         with self._state_lock:
             self._subscriptions.clear()
             self._event_callbacks.clear()
+
+        if not self.ipc.connected:
+            return
+
+        self.ipc.disconnect()
 
     def _normalize_event(self, event):
         if isinstance(event, Event):

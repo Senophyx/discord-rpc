@@ -219,6 +219,18 @@ class ReconnectTests(unittest.TestCase):
         # the next subscribe/set_activity).
         self.assertFalse(rpc.ipc.connected)
 
+    def test_disconnect_clears_state_when_pipe_already_disconnected(self):
+        rpc = make_rpc()
+        rpc.is_running = True
+        with rpc._state_lock:
+            rpc._subscriptions.add("ACTIVITY_JOIN")
+            rpc._event_callbacks["ACTIVITY_JOIN"] = [lambda d: None]
+        rpc.ipc.connected = False
+        rpc.disconnect()
+        self.assertFalse(rpc.is_running)
+        self.assertFalse(rpc._subscriptions)
+        self.assertFalse(rpc._event_callbacks)
+
     def test_run_exits_after_heartbeat_failure(self):
         rpc = make_rpc()
         calls = []
