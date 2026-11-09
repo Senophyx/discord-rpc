@@ -1,6 +1,6 @@
 import discordrpc
 
-# Import timestamp variable from discordrpc.utils to get current timestamp
+# Import timestamp function from discordrpc.utils to get current timestamp
 from discordrpc.utils import timestamp
 
 
