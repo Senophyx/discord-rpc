@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking
 - `utils.timestamp` is now a function, not a variable. Update `timestamp` to `timestamp()` in your code.
 
+### Added
+- Unix pipe connect now also tries the Flatpak Discord socket at `$XDG_RUNTIME_DIR/app/com.discordapp.Discord/discord-ipc-N` (PR [#71](https://github.com/Senophyx/discord-rpc/pull/71) by @orowith2os)
+
 ### Fixed
 - `disconnect()` now clears `is_running`, subscriptions, and callbacks even when the pipe was already disconnected
 - Unix pipe connect now falls back cleanly on any socket error (not just missing pipe)
