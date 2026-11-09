@@ -593,11 +593,13 @@ class UnixPipe(_BasePipe):
             or os.environ.get('TEMP')
             or '/tmp'
         ).rstrip('/')
-        base_path = raw_path + '/discord-ipc-{0}'
+        candidates = [
+            f"{raw_path}/{sub}discord-ipc-{i}"
+            for i in range(10)
+            for sub in ("", "app/com.discordapp.Discord/")  # host first, then Flatpak sandbox
+        ]
 
-        for i in range(10):
-            path = base_path.format(i)
-
+        for path in candidates:
             try:
                 self.socket.connect(path)
                 break
