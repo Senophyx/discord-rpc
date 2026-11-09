@@ -1,14 +1,17 @@
 import json
 import struct
+import threading
+import time
 import unittest
 
-from discordrpc.presence import _BasePipe
+from discordrpc.presence import _BasePipe, OP_CLOSE
 
 
 class FakePipe(_BasePipe):
     def __init__(self, chunks):
+        super().__init__(None, False, False)
         self.chunks = list(chunks)
-        self._connected = True
+        self.connected = True
 
     def _connect_pipe(self):
         return True
@@ -90,6 +93,41 @@ class ReadFrameTests(unittest.TestCase):
         pipe = FakePipe([struct.pack("<ii", 1, 20 * 1024 * 1024)])
         with self.assertRaises(ValueError):
             pipe._read_frame()
+
+
+class ReaderDisconnectTests(unittest.TestCase):
+    """Reader must mark the pipe disconnected when the peer closes."""
+
+    def _pipe_with(self, chunks):
+        pipe = FakePipe(chunks)
+        pipe.connected = True
+        return pipe
+
+    def test_eof_marks_pipe_disconnected(self):
+        # Peer closed the socket: _read_some returns b"" -> OSError in _read_exact.
+        pipe = self._pipe_with([])
+        pipe._start_reader()
+        time.sleep(0.3)
+        self.assertFalse(pipe.connected)
+        pipe._reader_stop.set()
+        pipe._close()
+
+    def test_op_close_empty_payload_marks_pipe_disconnected(self):
+        # OP_CLOSE with length 0 (no payload) must still mark disconnected.
+        pipe = self._pipe_with([struct.pack("<ii", OP_CLOSE, 0)])
+        pipe._start_reader()
+        time.sleep(0.3)
+        self.assertFalse(pipe.connected)
+        pipe._reader_stop.set()
+        pipe._close()
+
+    def test_reader_stops_after_disconnect(self):
+        pipe = self._pipe_with([struct.pack("<ii", OP_CLOSE, 0)])
+        pipe._start_reader()
+        thread = pipe._reader_thread
+        time.sleep(0.3)
+        thread.join(timeout=1)
+        self.assertFalse(thread.is_alive())
 
 
 if __name__ == "__main__":

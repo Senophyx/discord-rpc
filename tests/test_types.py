@@ -1,6 +1,6 @@
 import unittest
 
-from discordrpc.types import Application, User
+from discordrpc.types import Application, AssetManager, User
 
 
 class UserAvatarDecorationTests(unittest.TestCase):
@@ -56,6 +56,23 @@ class ApplicationCoverTests(unittest.TestCase):
             app.icon,
             "https://cdn.discordapp.com/app-icons/123456789/c0ffee.png?size=1024",
         )
+
+
+class AssetManagerTests(unittest.TestCase):
+    def test_empty_assets_list(self):
+        self.assertEqual(len(AssetManager(123456789, [])), 0)
+
+    def test_no_assets_list_does_not_crash(self):
+        self.assertEqual(len(AssetManager(123456789)), 0)
+
+    def test_get_by_name(self):
+        am = AssetManager(123456789, [
+            {"id": 1, "name": "cat"},
+            {"id": 2, "name": "dog"},
+        ])
+        self.assertEqual(am.get("cat").name, "cat")
+        self.assertIsNone(am.get("nonexistent"))
+        self.assertEqual(am.names, ["cat", "dog"])
 
 
 if __name__ == "__main__":

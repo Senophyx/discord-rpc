@@ -200,14 +200,15 @@ class RPC:
         self.set_activity(clear=True)
 
     def disconnect(self):
-        if not self.ipc.connected:
-            return
-
-        self.ipc.disconnect()
         self.is_running = False
         with self._state_lock:
             self._subscriptions.clear()
             self._event_callbacks.clear()
+
+        if not self.ipc.connected:
+            return
+
+        self.ipc.disconnect()
 
     def _normalize_event(self, event):
         if isinstance(event, Event):
@@ -221,6 +222,9 @@ class RPC:
 
     def subscribe(self, event) -> Optional[bool]:
         event = self._normalize_event(event)
+
+        if not self.ipc.connected and self.try_reconnecting:
+            self._setup()
 
         if not self.ipc.connected:
             return
@@ -245,13 +249,16 @@ class RPC:
     def unsubscribe(self, event) -> Optional[bool]:
         event = self._normalize_event(event)
 
+        if not self.ipc.connected and self.try_reconnecting:
+            self._setup()
+
         if not self.ipc.connected:
             return
 
         with self._state_lock:
             if event not in self._subscriptions:
                 log.error(f"Event {event} not subscribed")
-                return
+                return False
 
         payload = {"cmd": "UNSUBSCRIBE", "args": {}, "evt": event, "nonce": str(uuid.uuid4())}
         res = self.ipc._request(payload)
@@ -315,6 +322,7 @@ class RPC:
                     except Exception as e:
                         log.error(f"Heartbeat PING failed: {e}")
                         self.disconnect()
+                        break
         except KeyboardInterrupt:
             self.disconnect()
 
@@ -400,10 +408,15 @@ class _BasePipe:
                 frame = self._read_frame()
             except Exception as e:
                 log.debug(f"IPC reader stopping: {e}")
+                self.connected = False
                 break
             if frame is None:
                 continue
             opcode, payload = frame
+            if opcode == OP_CLOSE:
+                log.debug("Received OP_CLOSE from Discord")
+                self.connected = False
+                break
             if payload is None:
                 continue
             if not isinstance(payload, dict):
@@ -422,10 +435,6 @@ class _BasePipe:
                 if payload.get("cmd") == "DISPATCH":
                     self._on_event(payload.get("evt"), payload.get("data") or {})
                 continue
-            if opcode == OP_CLOSE:
-                log.debug("Received OP_CLOSE from Discord")
-                self.connected = False
-                break
 
     def _on_event(self, evt, data):
         """Override in subclass or by RPC to dispatch events."""
@@ -596,12 +605,12 @@ class UnixPipe(_BasePipe):
                 self.socket.connect(host_path)
                 connected_path = host_path
                 break
-            except FileNotFoundError:
+            except OSError:
                 try:
                     self.socket.connect(flatpak_path)
                     connected_path = flatpak_path
                     break
-                except FileNotFoundError:
+                except OSError:
                     pass
 
         else:
@@ -618,7 +627,10 @@ class UnixPipe(_BasePipe):
         self.socket.sendall(data)
 
     def _close(self):
-        self.socket.shutdown(socket.SHUT_RDWR)
+        try:
+            self.socket.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
         self.socket.close()
 
     def _read_some(self, size: int) -> bytes:

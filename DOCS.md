@@ -143,7 +143,7 @@ Clears the current activity without disconnecting.
 def disconnect(): -> None
 ```
 
-Closes the IPC socket and marks the client as disconnected.
+Closes the IPC socket, clears subscriptions and callbacks, and marks the client as disconnected.
 
 ---
 
@@ -234,7 +234,7 @@ from discordrpc import utils
 
 ### `utils.timestamp`
 ```python
-timestamp -> int
+def timestamp() -> int
 ```
 Returns the current time in epoch timestamp.
 
@@ -254,7 +254,7 @@ Returns a `ts_start` payload starting from midnight today.
 ```python
 def progress_bar(current: int, duration: int) -> dict
 ```
-Returns `ts_start` and `ts_end` based on progress. Raises `ProgressbarError` if current > duration.
+Returns `ts_start` and `ts_end` based on progress. Raises `ProgressbarError` if `current` is negative, `duration` is zero or negative, or `current > duration`.
 
 ### `utils.get_app_info`
 ```python
@@ -367,6 +367,7 @@ rpc.unsubscribe(Event.JOIN)
 ```
 
 - `subscribe()` / `unsubscribe()` accept either an `Event` member or a valid event string.
+- `unsubscribe()` returns `False` when the event is not currently subscribed.
 - An unknown event name raises `InvalidEvent`.
 - A non-string, non-enum value raises `InvalidEventType`.
 - The `@rpc.on()` decorator raises `RPCException` if the subscription is rejected by Discord.
@@ -382,6 +383,7 @@ rpc.unsubscribe(Event.JOIN)
 
 - `disconnect()` clears all subscriptions and callbacks.
 - After a reconnect, call `subscribe()` again if you want events.
+- `subscribe()` and `unsubscribe()` automatically attempt to reconnect when the pipe is disconnected (e.g. after the reader stops idle following the last unsubscribe).
 
 ---
 

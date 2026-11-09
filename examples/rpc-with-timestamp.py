@@ -10,7 +10,7 @@ rpc.set_activity(
       name="Timestamp Example",
       state="With timestamp!",
       details="Timestamp",
-      ts_start=timestamp, # Timestamp start
+      ts_start=timestamp(), # Timestamp start
       ts_end=1752426021 # Timestamp end
     )
 

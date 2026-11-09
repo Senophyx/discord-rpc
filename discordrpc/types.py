@@ -91,7 +91,7 @@ class AssetManager(list):
     def __init__(self, app_id:int, assets_list:list=None):
         super().__init__(
             Asset(app_id, asset)
-            for asset in assets_list
+            for asset in (assets_list or [])
         )
     def get(self, name: str) -> Asset:
         return next((asset for asset in self if asset.name == name), None)

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## Unreleased
+
+### Breaking
+- `utils.timestamp` is now a function, not a variable. Update `timestamp` to `timestamp()` in your code.
+
+### Fixed
+- `disconnect()` now clears `is_running`, subscriptions, and callbacks even when the pipe was already disconnected
+- Unix pipe connect now falls back cleanly on any socket error (not just missing pipe)
+- `unsubscribe()` now returns `False` (instead of `None`) when the event is not subscribed
+- Unix pipe close no longer raises when Discord already closed the socket
+- `run()` now exits its loop when the heartbeat PING fails, instead of hanging forever when `exit_on_disconnect=False`
+- `subscribe()` and `unsubscribe()` now attempt to reconnect when the pipe is disconnected, instead of silently returning `None` (this happened after the reader stopped idle following the last unsubscribe)
+- `progress_bar()` now raises `ProgressbarError` when `current` is negative or `duration` is zero/negative
+- `AssetManager()` no longer raises `TypeError` when constructed without an asset list
+- IPC reader now marks the pipe as disconnected when the socket is closed by Discord (EOF) or an `OP_CLOSE` frame with an empty payload is received, instead of stopping silently while `connected` stays `True`
+
+### Changed
+- `ButtonError` and `ProgressbarError` no longer define redundant constructors
+- `date_to_timestamp()` now uses `datetime.timestamp()` instead of `time.mktime()`
+- `get_app_info()` and `get_assets()` now share a single fetch helper
+
 ## [6.5] - 2026-08-05
 
 ### Added
