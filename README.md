@@ -56,9 +56,13 @@ Big thanks for contributors who help this project keep updated, and maintained.
 
 ## Star History
 
-<img src='media/star-history-202687.png' alt='discord-rpc star history 2026-08-07'>
-
-> Last updated 2026-08-07
+<a href="https://www.star-history.com/?repos=senophyx%2Fdiscord-rpc&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=senophyx/discord-rpc&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=senophyx/discord-rpc&type=date&legend=top-left" />
+   <img alt="discord-rpc star history chart" src="https://api.star-history.com/chart?repos=senophyx/discord-rpc&type=date&legend=top-left" />
+ </picture>
+</a>
 
 ## Licence & Copyright
 
