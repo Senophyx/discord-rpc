@@ -1,3 +1,4 @@
+import os
 import socket
 import unittest
 from unittest import mock
@@ -16,6 +17,22 @@ class UnixPipeConnectTests(unittest.TestCase):
         with mock.patch.object(socket.socket, "connect", side_effect=PermissionError("denied")):
             pipe = UnixPipe("1", False, False)
             self.assertFalse(pipe._connect_pipe())
+
+    def test_falls_back_to_flatpak_socket(self):
+        flatpak = "/run/user/1000/app/com.discordapp.Discord/discord-ipc-0"
+        tried = []
+
+        def connect(path):
+            tried.append(path)
+            if path != flatpak:
+                raise FileNotFoundError(path)
+
+        with mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": "/run/user/1000"}), \
+                mock.patch.object(socket.socket, "connect", side_effect=connect):
+            pipe = UnixPipe("1", False, False)
+
+        self.assertTrue(pipe.connected)
+        self.assertEqual(tried, ["/run/user/1000/discord-ipc-0", flatpak])
 
 
 class UnixPipeCloseTests(unittest.TestCase):

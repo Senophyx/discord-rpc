@@ -585,7 +585,6 @@ class WindowsPipe(_BasePipe):
 class UnixPipe(_BasePipe):
     def _connect_pipe(self):
         self.socket = socket.socket(socket.AF_UNIX)
-        connected_path = None
 
         raw_path = (
             os.environ.get('XDG_RUNTIME_DIR')
@@ -594,24 +593,18 @@ class UnixPipe(_BasePipe):
             or os.environ.get('TEMP')
             or '/tmp'
         ).rstrip('/')
-        host_base_path = raw_path + '/discord-ipc-{0}'
-        flatpak_base_path = raw_path + '/discord-ipc-{0}'
+        candidates = [
+            f"{raw_path}/{sub}discord-ipc-{i}"
+            for i in range(10)
+            for sub in ("", "app/com.discordapp.Discord/")  # host first, then Flatpak sandbox
+        ]
 
-        for i in range(10):
-            host_path = base_path.format(i)
-            flatpak_path = flatpak_base_path = base_path.format(i)
-
+        for path in candidates:
             try:
-                self.socket.connect(host_path)
-                connected_path = host_path
+                self.socket.connect(path)
                 break
             except OSError:
-                try:
-                    self.socket.connect(flatpak_path)
-                    connected_path = flatpak_path
-                    break
-                except OSError:
-                    pass
+                pass
 
         else:
             if self.exit_if_discord_close:
@@ -620,7 +613,7 @@ class UnixPipe(_BasePipe):
                 log.warning("Discord is closed")
             return False
 
-        log.debug(f"Connected to {connected_path}")
+        log.debug(f"Connected to {path}")
         return True
 
     def _write(self, data: bytes):
