@@ -257,6 +257,34 @@ class ReconnectTests(unittest.TestCase):
         self.assertFalse(thread.is_alive())
         self.assertIn("disconnect", calls)
 
+    def _start_run(self, rpc):
+        thread = threading.Thread(
+            target=rpc.run, kwargs={"update_every": 0.05, "ping_every": 10}, daemon=True
+        )
+        thread.start()
+        return thread
+
+    def test_run_exits_when_discord_closes_socket(self):
+        rpc = make_rpc()
+        calls = []
+        rpc.ipc.disconnect = lambda: calls.append("ipc.disconnect")
+        rpc.ipc._start_reader()
+        rpc.ipc._in.put(b"")  # EOF: Discord closed the socket
+        thread = self._start_run(rpc)
+        thread.join(timeout=2)
+        self.assertFalse(thread.is_alive())
+        # ipc.disconnect() is what honors exit_on_disconnect
+        self.assertEqual(calls, ["ipc.disconnect"])
+
+    def test_run_keeps_going_when_reader_stops_idle(self):
+        rpc = make_rpc()
+        rpc.ipc._start_reader()
+        rpc._stop_reader_if_idle()
+        rpc.ipc._reader_thread.join(timeout=2)
+        thread = self._start_run(rpc)
+        thread.join(timeout=0.5)
+        self.assertTrue(thread.is_alive())
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

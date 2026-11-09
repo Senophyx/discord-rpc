@@ -312,7 +312,14 @@ class RPC:
             last_ping = time.time()
             while True:
                 time.sleep(update_every)
-                
+
+                if self.ipc.closed_by_discord:
+                    log.warning("Discord closed the connection")
+                    self.disconnect()
+                    # disconnect() skips the pipe once it is marked disconnected
+                    self.ipc.disconnect()
+                    break
+
                 # Send a PING heartbeat every `ping_every` seconds to keep the socket alive
                 if self.ipc.connected and (time.time() - last_ping >= ping_every):
                     payload = {"v": 1, "client_id": self.app_id}
@@ -332,6 +339,7 @@ class _BasePipe:
         self.app_id = app_id
         self.exit_if_discord_close = exit_if_discord_close
         self.exit_on_disconnect = exit_on_disconnect
+        self.closed_by_discord = False
         self.connected = self._connect_pipe()
         self._write_lock = threading.Lock()
         self._pending_requests = {}
@@ -408,6 +416,9 @@ class _BasePipe:
                 frame = self._read_frame()
             except Exception as e:
                 log.debug(f"IPC reader stopping: {e}")
+                # A read error after our own stop request is not Discord closing
+                if not self._reader_stop.is_set():
+                    self.closed_by_discord = True
                 self.connected = False
                 break
             if frame is None:
@@ -415,6 +426,7 @@ class _BasePipe:
             opcode, payload = frame
             if opcode == OP_CLOSE:
                 log.debug("Received OP_CLOSE from Discord")
+                self.closed_by_discord = True
                 self.connected = False
                 break
             if payload is None:
