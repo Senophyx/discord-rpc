@@ -18,6 +18,12 @@ from functools import cached_property
 import logging
 import time
 
+if sys.platform == "win32":
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+    _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
 OP_HANDSHAKE = 0
 OP_FRAME = 1
 OP_CLOSE = 2
@@ -582,7 +588,8 @@ class WindowsPipe(_BasePipe):
             path = base_path.format(i)
 
             try:
-                self.socket = open(path, "w+b")
+                # Unbuffered: a buffered file would hide bytes from PeekNamedPipe
+                self.socket = open(path, "w+b", buffering=0)
             except OSError as e:
                 log.debug("Failed to open {!r}: {}".format(path, e))
             else:
@@ -599,14 +606,29 @@ class WindowsPipe(_BasePipe):
         return True
 
     def _write(self, data: bytes):
-        self.socket.write(data)
-        self.socket.flush()
+        view = memoryview(data)
+        while view:
+            view = view[self.socket.write(view):]
 
     def _close(self):
         self.socket.close()
 
+    def _available(self) -> int:
+        available = wintypes.DWORD()
+        handle = msvcrt.get_osfhandle(self.socket.fileno())
+        if not _kernel32.PeekNamedPipe(handle, None, 0, None, ctypes.byref(available), None):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return available.value
+
     def _read_some(self, size: int) -> bytes:
-        return self.socket.read(size) or b""
+        # A blocking ReadFile on a synchronous pipe handle blocks every WriteFile on
+        # that handle until data arrives, so only read once bytes are waiting
+        while not self._reader_stop.is_set():
+            available = self._available()
+            if available:
+                return self.socket.read(min(size, available)) or b""
+            time.sleep(0.01)
+        return b""
 
 
 class UnixPipe(_BasePipe):

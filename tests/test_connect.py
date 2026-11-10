@@ -57,7 +57,7 @@ class WindowsPipeConnectTests(unittest.TestCase):
     def _open(self, ok_index):
         tried = []
 
-        def fake_open(path, mode):
+        def fake_open(path, mode, **kwargs):
             tried.append(path)
             if not path.endswith(f"discord-ipc-{ok_index}"):
                 raise FileNotFoundError(path)
