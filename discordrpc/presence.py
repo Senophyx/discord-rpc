@@ -8,7 +8,7 @@ import threading
 import queue
 from typing import Optional
 from .exceptions import (
-    RPCException, InvalidID, DiscordNotOpened,
+    RPCException, InvalidID, DiscordNotOpened, ActivityError,
     ButtonError, InvalidActivityType, ActivityTypeDisabled,
     InvalidEvent, InvalidEventType,
 )
@@ -29,6 +29,9 @@ OP_FRAME = 1
 OP_CLOSE = 2
 OP_PING = 3
 OP_PONG = 4
+
+# Long on purpose: Discord has been seen taking 17s to answer after many reconnects
+HANDSHAKE_TIMEOUT = 30
 
 ### Logger ###
 log = logging.getLogger("Discord RPC")
@@ -127,16 +130,22 @@ class RPC:
         if buttons and len(buttons) > 2:
             raise ButtonError("Max 2 buttons allowed")
 
-        # Validate button URLs so invalid URLs are caught client-side instead of
-        # being silently rejected by Discord (or missing from the presence).
+        # Check what Discord would reject, so the caller gets an error instead of a
+        # silent False. Limits verified against the real client.
+        for field, value in (("state", state), ("details", details)):
+            if value is not None and not 2 <= len(value) <= 128:
+                raise ActivityError(f"{field} must be 2 to 128 characters, got {len(value)}")
+
         if buttons:
-            buttons = [
-                {
-                    "label": item.get("label") if isinstance(item, dict) else None,
-                    "url": required_url(item.get("url") if isinstance(item, dict) else item),
-                }
-                for item in buttons
-            ]
+            if join_secret or spectate_secret or match_secret:
+                raise ButtonError("Buttons cannot be combined with join, spectate, or match secrets")
+            for item in buttons:
+                label = item.get("label") if isinstance(item, dict) else None
+                if not isinstance(label, str) or not 1 <= len(label) <= 32:
+                    raise ButtonError("Each button needs a label of 1 to 32 characters, use button(text, url)")
+                if len(required_url(item.get("url"))) > 512:
+                    raise ButtonError("Button URL must be at most 512 characters")
+            buttons = [{"label": item["label"], "url": item["url"]} for item in buttons]
 
         large_image = large_image.name if isinstance(large_image, Asset) else large_image
         small_image = small_image.name if isinstance(small_image, Asset) else small_image
@@ -351,6 +360,7 @@ class _BasePipe:
         self.exit_if_discord_close = exit_if_discord_close
         self.exit_on_disconnect = exit_on_disconnect
         self.closed_by_discord = False
+        self._read_timeout = None
         self.connected = self._connect_pipe()
         self._write_lock = threading.Lock()
         self._pending_requests = {}
@@ -512,7 +522,15 @@ class _BasePipe:
     def handshake(self):
         self._send({'v': 1, 'client_id': self.app_id}, OP_HANDSHAKE)
 
-        opcode, payload = self._read_frame()
+        self._set_read_timeout(HANDSHAKE_TIMEOUT)
+        try:
+            opcode, payload = self._read_frame()
+        except (socket.timeout, TimeoutError):
+            self.connected = False
+            raise RPCException(f"Handshake timed out: Discord did not answer within {HANDSHAKE_TIMEOUT} seconds")
+        finally:
+            self._set_read_timeout(None)
+
         if payload is None:
             raise RPCException("Handshake did not receive a READY event")
 
@@ -578,6 +596,10 @@ class _BasePipe:
         """Override in subclass to close the socket."""
         raise NotImplementedError
 
+    def _set_read_timeout(self, timeout):
+        """Seconds a read may wait for data; None waits forever."""
+        self._read_timeout = timeout
+
 
 class WindowsPipe(_BasePipe):
     def _connect_pipe(self):
@@ -622,10 +644,13 @@ class WindowsPipe(_BasePipe):
     def _read_some(self, size: int) -> bytes:
         # A blocking ReadFile on a synchronous pipe handle blocks every WriteFile on
         # that handle until data arrives, so only read once bytes are waiting
+        deadline = None if self._read_timeout is None else time.time() + self._read_timeout
         while not self._reader_stop.is_set():
             available = self._available()
             if available:
                 return self.socket.read(min(size, available)) or b""
+            if deadline is not None and time.time() >= deadline:
+                raise TimeoutError("Timed out waiting for Discord")
             time.sleep(0.01)
         return b""
 
@@ -676,3 +701,6 @@ class UnixPipe(_BasePipe):
 
     def _read_some(self, size: int) -> bytes:
         return self.socket.recv(size)
+
+    def _set_read_timeout(self, timeout):
+        self.socket.settimeout(timeout)

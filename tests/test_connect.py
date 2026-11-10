@@ -53,6 +53,24 @@ if __name__ == "__main__":
     unittest.main(verbosity=2)
 
 
+@unix_only
+class HandshakeTimeoutTests(unittest.TestCase):
+    def test_silent_discord_times_out(self):
+        from discordrpc import presence
+        from discordrpc.exceptions import RPCException
+
+        with mock.patch.object(UnixPipe, "_connect_pipe", return_value=True):
+            pipe = UnixPipe("1", False, False)
+        pipe.socket, peer = socket.socketpair()
+        self.addCleanup(peer.close)
+        self.addCleanup(pipe.socket.close)
+        with mock.patch.object(presence, "HANDSHAKE_TIMEOUT", 0.2), \
+                self.assertRaisesRegex(RPCException, "timed out"):
+            pipe.handshake()
+        self.assertFalse(pipe.connected)
+        self.assertIsNone(pipe.socket.gettimeout())
+
+
 class WindowsPipeConnectTests(unittest.TestCase):
     def _open(self, ok_index):
         tried = []

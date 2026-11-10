@@ -13,8 +13,10 @@ class DiscordNotOpened(RPCException):
         super().__init__("Error, could not find Discord. is Discord running?")
 
 class ActivityError(RPCException):
-    def __init__(self):
-        super().__init__("An error has occurred in activity payload, do you have set your activity correctly?")
+    def __init__(self, message: str = None):
+        if message is None:
+            message = "An error has occurred in activity payload, do you have set your activity correctly?"
+        super().__init__(message)
 
 class InvalidURL(RPCException):
     def __init__(self, message: str = None):

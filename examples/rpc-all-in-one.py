@@ -9,7 +9,7 @@ rpc = discordrpc.RPC(app_id=123456789)
 current_time = int(time.time())
 
 # Set a complex activity combining all features: text, images, timestamps, party, and buttons
-rpc.set_activity(
+ok = rpc.set_activity(
     name="Epic Boss Fight",
     state="In an Epic Boss Fight",
     details="Level 99 - The Abyss",
@@ -27,11 +27,9 @@ rpc.set_activity(
     party_id="boss_raid_554",
     party_size=[3, 5], # 3 players out of 5 max
     
-    # Secrets for "Ask to Join" (Required for party features)
-    join_secret="raid_invite_xyz",
-    spectate_secret="raid_spectate_xyz",
-    match_secret="raid_match_xyz",
-    
+    # Discord rejects buttons together with join/spectate/match secrets,
+    # so "Ask to Join" lives in rpc-party.py and rpc-events.py instead
+
     # Buttons (Max 2)
     buttons=[
         button("Join Raid", "https://discord.gg/qpT2AeYZRN"),
@@ -39,5 +37,5 @@ rpc.set_activity(
     ]
 )
 
-print("Complex RPC has been set!")
+print("Complex RPC has been set!" if ok else "Discord rejected the activity, check the log above")
 rpc.run()

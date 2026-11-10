@@ -1,7 +1,7 @@
 import unittest
 
 from discordrpc import button
-from discordrpc.exceptions import InvalidURL
+from discordrpc.exceptions import ActivityError, ButtonError, InvalidURL
 from discordrpc.utils import required_url, valid_url
 
 
@@ -132,6 +132,30 @@ class SetActivityButtonsTests(unittest.TestCase):
         rpc = self.make_rpc()
         with self.assertRaises(InvalidURL):
             rpc.set_activity(buttons=[{"label": "A", "url": ""}])
+
+    def test_state_and_details_length_limits(self):
+        rpc = self.make_rpc()
+        self.assertTrue(rpc.set_activity(state="ab", details="x" * 128))
+        for kwargs in ({"state": "a"}, {"details": "x" * 129}):
+            with self.assertRaises(ActivityError):
+                rpc.set_activity(**kwargs)
+
+    def test_buttons_with_secrets_rejected(self):
+        rpc = self.make_rpc()
+        with self.assertRaises(ButtonError):
+            rpc.set_activity(buttons=[button("A", "https://valid.com")], join_secret="s")
+
+    def test_button_label_required_and_limited(self):
+        rpc = self.make_rpc()
+        self.assertTrue(rpc.set_activity(buttons=[button("x" * 32, "https://valid.com")]))
+        for item in ("https://valid.com", {"url": "https://valid.com"}, button("x" * 33, "https://valid.com")):
+            with self.assertRaises(ButtonError):
+                rpc.set_activity(buttons=[item])
+
+    def test_button_url_length_limited(self):
+        rpc = self.make_rpc()
+        with self.assertRaises(ButtonError):
+            rpc.set_activity(buttons=[button("A", "https://valid.com/" + "x" * 500)])
 
     def test_status_type_accepts_int(self):
         rpc = self.make_rpc()
