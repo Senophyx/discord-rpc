@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## Unreleased
+## [7.0] - 2026-11-10
 
 ### Breaking
 - `utils.timestamp` is now a function, not a variable. Update `timestamp` to `timestamp()` in your code.
