@@ -65,6 +65,10 @@ class RPC:
         self._setup()
 
     def _setup(self):
+        # A new pipe starts with no subscriptions on Discord's side
+        with self._state_lock:
+            self._subscriptions.clear()
+
         if sys.platform == "win32":
             self.ipc = WindowsPipe(self.app_id, self.exit_if_discord_close, self.exit_on_disconnect)
         else:
@@ -281,7 +285,6 @@ class RPC:
             self._subscriptions.discard(event)
             self._event_callbacks.pop(event, [])
         log.info(f"Unsubscribed from {event}")
-        self._stop_reader_if_idle()
         return True
 
     def on(self, event: Event):
@@ -297,17 +300,6 @@ class RPC:
             return callback
 
         return decorator
-
-    def _stop_reader_if_idle(self):
-        with self._state_lock:
-            idle = not self._subscriptions
-        if idle and self.ipc._reader_thread and self.ipc._reader_thread.is_alive():
-            self.ipc._reader_stop.set()
-            try:
-                self.ipc._close()
-            except Exception:
-                pass
-            self.ipc.connected = False
 
     def _dispatch(self, evt: str, data: dict):
         with self._state_lock:
@@ -464,7 +456,14 @@ class _BasePipe:
                         pending.put((opcode, payload))
                         continue
                 if payload.get("cmd") == "DISPATCH":
-                    self._on_event(payload.get("evt"), payload.get("data") or {})
+                    # Off the reader thread: a callback that calls set_activity() needs
+                    # this thread free to read the reply. shortcut: one thread per event,
+                    # so callbacks may overlap; use a queue if events ever get frequent
+                    threading.Thread(
+                        target=self._on_event,
+                        args=(payload.get("evt"), payload.get("data") or {}),
+                        daemon=True,
+                    ).start()
                 continue
 
     def _on_event(self, evt, data):
