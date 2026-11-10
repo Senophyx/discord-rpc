@@ -133,6 +133,11 @@ class SetActivityButtonsTests(unittest.TestCase):
         with self.assertRaises(InvalidURL):
             rpc.set_activity(buttons=[{"label": "A", "url": ""}])
 
+    def test_status_type_accepts_int(self):
+        rpc = self.make_rpc()
+        self.assertTrue(rpc.set_activity(state="ab", status_type=1))
+        self.assertEqual(rpc.ipc.captured["args"]["activity"]["status_display_type"], 1)
+
     def test_buttons_with_none_url_rejected(self):
         rpc = self.make_rpc()
         with self.assertRaises(InvalidURL):

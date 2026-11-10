@@ -73,6 +73,7 @@ def make_rpc():
     rpc._user_data = {"id": "1", "username": "seno"}
     rpc._app_info = None
     rpc.is_running = False
+    rpc._disconnected = False
     rpc._event_callbacks = {}
     rpc._subscriptions = set()
     rpc._state_lock = threading.Lock()
@@ -284,6 +285,42 @@ class ReconnectTests(unittest.TestCase):
         thread = self._start_run(rpc)
         thread.join(timeout=0.5)
         self.assertTrue(thread.is_alive())
+
+
+    def test_run_exits_when_disconnect_called_from_another_thread(self):
+        rpc = make_rpc()
+        thread = self._start_run(rpc)
+        rpc.disconnect()  # e.g. from an event callback on the reader thread
+        thread.join(timeout=2)
+        self.assertFalse(thread.is_alive())
+
+
+class ClosePipe(FakePipe):
+    def _close(self):
+        # Closing the socket wakes the blocked reader with EOF right away
+        self._in.put(b"")
+        time.sleep(0.3)
+
+
+class OwnDisconnectTests(unittest.TestCase):
+    def test_own_disconnect_is_not_closed_by_discord(self):
+        pipe = ClosePipe()
+        pipe._start_reader()
+        pipe.disconnect()
+        self.assertFalse(pipe.closed_by_discord)
+
+
+class SmallApiTests(unittest.TestCase):
+    def test_clear_returns_result(self):
+        rpc = make_rpc()
+        self.assertTrue(rpc.clear())
+
+    def test_user_reflects_late_handshake(self):
+        rpc = make_rpc()
+        rpc._user_data = None
+        self.assertIsNone(rpc.User.username)
+        rpc._user_data = {"id": "2", "username": "later"}
+        self.assertEqual(rpc.User.username, "later")
 
 
 if __name__ == "__main__":

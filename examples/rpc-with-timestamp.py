@@ -11,7 +11,7 @@ rpc.set_activity(
       state="With timestamp!",
       details="Timestamp",
       ts_start=timestamp(), # Timestamp start
-      ts_end=1752426021 # Timestamp end
+      ts_end=timestamp() + 3600 # Timestamp end (one hour from now)
     )
 
 

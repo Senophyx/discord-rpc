@@ -52,6 +52,7 @@ class RPC:
             log.disabled = True
 
         self.is_running = False
+        self._disconnected = False
         self._event_callbacks = {}
         self._subscriptions = set()
         self._state_lock = threading.Lock()
@@ -70,7 +71,7 @@ class RPC:
     @property
     def connected(self): return self.ipc.connected
 
-    @cached_property
+    @property
     def User(self):
         return User(self._user_data)
 
@@ -109,6 +110,9 @@ class RPC:
         # https://github.com/Senophyx/discord-rpc/issues/28#issuecomment-2301287350
         if act_type in [Activity.Streaming, Activity.Custom]:
             raise ActivityTypeDisabled()
+
+        # Accepts a StatusDisplay member or its int value; anything else raises ValueError
+        status_type = StatusDisplay(status_type)
 
         if buttons and len(buttons) > 2:
             raise ButtonError("Max 2 buttons allowed")
@@ -196,11 +200,12 @@ class RPC:
             return False
 
 
-    def clear(self):
-        self.set_activity(clear=True)
+    def clear(self) -> Optional[bool]:
+        return self.set_activity(clear=True)
 
     def disconnect(self):
         self.is_running = False
+        self._disconnected = True
         with self._state_lock:
             self._subscriptions.clear()
             self._event_callbacks.clear()
@@ -308,16 +313,24 @@ class RPC:
                 log.exception("Error in '%s' event callback", evt)
 
     def run(self, update_every:int=1, ping_every:int=15):
+        self._disconnected = False
         try:
             last_ping = time.time()
             while True:
                 time.sleep(update_every)
 
-                if self.ipc.closed_by_discord:
+                if self.ipc.closed_by_discord and not self._disconnected:
                     log.warning("Discord closed the connection")
                     self.disconnect()
                     # disconnect() skips the pipe once it is marked disconnected
                     self.ipc.disconnect()
+                    break
+
+                # disconnect() from another thread (e.g. an event callback) can only
+                # sys.exit() that thread, so the main loop has to honor it here
+                if self._disconnected:
+                    if self.exit_on_disconnect:
+                        sys.exit()
                     break
 
                 # Send a PING heartbeat every `ping_every` seconds to keep the socket alive
@@ -499,8 +512,13 @@ class _BasePipe:
             raise RPCException("Handshake did not receive a READY event")
 
         if opcode == OP_CLOSE:
+            # Discord rejects a bad client ID with OP_CLOSE {"code": 4000, ...}
             self.connected = False
-            raise RPCException("Handshake closed by Discord before READY")
+            data = payload if isinstance(payload, dict) else {}
+            self._handle_handshake_error({
+                "code": data.get("code"),
+                "error": data.get("message") or "Handshake closed by Discord before READY",
+            })
 
         if not isinstance(payload, dict):
             raise RPCException("Handshake did not receive a READY event")
@@ -524,13 +542,14 @@ class _BasePipe:
         raise RPCException("Handshake did not receive a READY event")
 
     def disconnect(self):
+        # Set before closing so the reader does not mistake our close for Discord's
+        self._reader_stop.set()
         try:
             self._send({}, OP_CLOSE)
             self._close()
         except Exception as e:
             log.debug("Socket closed before command was received: %s", e)
 
-        self._reader_stop.set()
         self._close_pending()
         reader = self._reader_thread
         if reader and reader.is_alive() and reader is not threading.current_thread():
@@ -565,11 +584,7 @@ class WindowsPipe(_BasePipe):
             try:
                 self.socket = open(path, "w+b")
             except OSError as e:
-                if self.exit_if_discord_close:
-                    log.debug("Failed to open {!r}: {}".format(path, e))
-                    raise DiscordNotOpened()
-                else:
-                    log.debug("Discord seems to be close.")
+                log.debug("Failed to open {!r}: {}".format(path, e))
             else:
                 break
 

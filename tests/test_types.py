@@ -42,6 +42,10 @@ class ApplicationCoverTests(unittest.TestCase):
             "https://cdn.discordapp.com/app-icons/123456789/deadbeef.png?size=1024&keep_aspect_ratio=true",
         )
 
+    def test_public_unknown_when_missing(self):
+        self.assertIsNone(Application({"id": "1"}).public)
+        self.assertTrue(Application({"id": "1", "bot_public": True}).public)
+
     def test_cover_missing(self):
         app = Application({"id": "123456789", "name": "test"})
         self.assertEqual(app.cover, "")

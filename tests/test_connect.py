@@ -3,7 +3,8 @@ import socket
 import unittest
 from unittest import mock
 
-from discordrpc.presence import UnixPipe
+from discordrpc.exceptions import DiscordNotOpened
+from discordrpc.presence import UnixPipe, WindowsPipe
 
 unix_only = unittest.skipUnless(hasattr(socket, "AF_UNIX"), "Unix sockets not available")
 
@@ -50,3 +51,29 @@ class UnixPipeCloseTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class WindowsPipeConnectTests(unittest.TestCase):
+    def _open(self, ok_index):
+        tried = []
+
+        def fake_open(path, mode):
+            tried.append(path)
+            if not path.endswith(f"discord-ipc-{ok_index}"):
+                raise FileNotFoundError(path)
+            return mock.MagicMock()
+
+        return tried, mock.patch("builtins.open", side_effect=fake_open)
+
+    def test_tries_next_pipe_when_exit_if_discord_close(self):
+        tried, patch = self._open(1)
+        with patch:
+            pipe = WindowsPipe("1", True, False)
+        self.assertTrue(pipe.connected)
+        self.assertEqual(len(tried), 2)
+
+    def test_raises_after_all_pipes_fail(self):
+        tried, patch = self._open(99)
+        with patch, self.assertRaises(DiscordNotOpened):
+            WindowsPipe("1", True, False)
+        self.assertEqual(len(tried), 10)

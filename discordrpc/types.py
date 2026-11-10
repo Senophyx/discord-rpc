@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Optional
 
 
 # https://docs.discord.com/developers/events/gateway-events#activity-object-activity-types
@@ -58,7 +59,8 @@ class Application():
         self.icon: str = self._parse_icon(data.get("icon"))
         self.cover: str = self._parse_cover(data.get("cover_image"))
         self.verified: bool = data.get("is_verified", False)
-        self.public: bool = data.get("bot_public", False)
+        # The /rpc endpoint may omit bot_public; None means unknown, not private
+        self.public: Optional[bool] = data.get("bot_public")
 
     def _parse_icon(self, icon_id:str, size:int=1024) -> str:
         if icon_id:
