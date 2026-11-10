@@ -116,6 +116,10 @@ Notes:
 - `act_type` must be a `types.Activity` member; otherwise `InvalidActivityType` is raised.
 - `Activity.Streaming` and `Activity.Custom` are disabled for Rich Presence updates and will raise `ActivityTypeDisabled`.
 - Images can be an uploaded asset key or an external direct URL (PNG, JPEG, WebP, GIF, AVIF).
+- `status_type` also accepts the plain int value (`0`, `1`, or `2`).
+- `state` and `details` must be 2 to 128 characters long, otherwise `ActivityError` is raised.
+- Each button needs a label of 1 to 32 characters and a URL of at most 512 characters, otherwise `ButtonError` is raised.
+- Discord rejects buttons together with `join_secret`, `spectate_secret`, or `match_secret`, so that combination raises `ButtonError`.
 
 #### `RPC.run()`
 
@@ -132,10 +136,10 @@ Parameters:
 #### `RPC.clear()`
 
 ```python
-def clear(): -> None
+def clear(): -> Optional[bool]
 ```
 
-Clears the current activity without disconnecting.
+Clears the current activity without disconnecting. Returns the same result as `set_activity()`.
 
 #### `RPC.disconnect()`
 
@@ -190,7 +194,7 @@ Attributes:
 - **icon** *(str)* — CDN URL to the application icon.
 - **cover** *(str)* — CDN URL to the application cover image (keeps aspect ratio), or `""` when not set.
 - **verified** *(bool)* — Whether the application is verified.
-- **public** *(bool)* — Whether the bot is public.
+- **public** *(bool | None)*: Whether the bot is public, or `None` when Discord does not report it.
 
 ---
 
@@ -374,8 +378,9 @@ rpc.unsubscribe(Event.JOIN)
 
 ### Callback behavior
 
-- Callbacks run on the internal IPC reader thread. Keep them short and non-blocking.
-- A slow callback delays processing of other events and responses.
+- Each event's callbacks run on their own thread, so a callback can safely call `set_activity()`, `subscribe()`, or `unsubscribe()`.
+- Callbacks for events that arrive close together can run at the same time.
+- Calling `disconnect()` inside a callback also stops `run()`.
 - An exception raised inside a callback is logged and does not stop the reader.
 - Use locks or queues if your callback touches shared state.
 
@@ -383,7 +388,8 @@ rpc.unsubscribe(Event.JOIN)
 
 - `disconnect()` clears all subscriptions and callbacks.
 - After a reconnect, call `subscribe()` again if you want events.
-- `subscribe()` and `unsubscribe()` automatically attempt to reconnect when the pipe is disconnected (e.g. after the reader stops idle following the last unsubscribe).
+- `subscribe()` and `unsubscribe()` automatically attempt to reconnect when the pipe is disconnected.
+- Unsubscribing from the last event keeps the connection open, so your presence stays visible.
 
 ---
 
@@ -396,10 +402,10 @@ All exceptions extend `RPCException`.
 | `RPCException` | Base exception |
 | `Error(message)` | Generic user error |
 | `DiscordNotOpened()` | Discord not found/running |
-| `ActivityError()` | Invalid activity payload |
+| `ActivityError(message)` | Invalid activity payload, such as `state` or `details` outside 2 to 128 characters |
 | `InvalidURL(message)` | URL is not a valid http/https URL |
 | `InvalidID()` | Invalid Application ID |
-| `ButtonError(message)` | Button limit exceeded |
+| `ButtonError(message)` | More than 2 buttons, bad label or URL length, or buttons combined with secrets |
 | `ProgressbarError(message)` | Invalid progress values |
 | `InvalidActivityType(message)` | act_type not a valid Activity |
 | `ActivityTypeDisabled()` | Streaming/Custom blocked by Discord |
@@ -416,6 +422,7 @@ All exceptions extend `RPCException`.
 - **No images appear** — Upload assets to Discord Developer Portal Art Assets section.
 - **App exits on disconnect** — Set `exit_on_disconnect=False`.
 - **Silence logs** — Pass `output=False`.
+- **`Handshake timed out`**: Discord did not answer within 30 seconds. Restarting Discord usually helps.
 
 ---
 
