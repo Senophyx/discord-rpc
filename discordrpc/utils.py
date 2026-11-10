@@ -23,13 +23,12 @@ def remove_none(d: dict):
     return d
 
 
-timestamp = int(time.mktime(time.localtime()))
+def timestamp() -> int:
+    return int(time.time())
 
 
 def date_to_timestamp(date:str):
-    return int(time.mktime(
-        datetime.strptime(date, "%d/%m/%Y-%H:%M:%S").timetuple()
-    ))
+    return int(datetime.strptime(date, "%d/%m/%Y-%H:%M:%S").timestamp())
 
 def _validate_url(url, required: bool):
     if url is None:
@@ -57,34 +56,34 @@ def use_local_time():
     }
 
 def progress_bar(current:int, duration:int) -> dict:
-    if int(current) > int(duration):
+    current, duration = int(current), int(duration)
+    if current < 0:
+        raise ProgressbarError("Current cannot be negative")
+    if duration <= 0:
+        raise ProgressbarError("Duration must be greater than zero")
+    if current > duration:
         raise ProgressbarError("Current cannot exceed Duration")
     
-    current_time = int(time.time()) - int(current)
-    finish_time = current_time + int(duration)
+    current_time = int(time.time()) - current
+    finish_time = current_time + duration
 
     return {
         "ts_start": current_time, "ts_end": finish_time
     }
 
-def get_app_info(app_id:int) -> dict:
+def _fetch_json(url: str):
     try:
-        req = urllib.request.Request(f"https://discord.com/api/v10/applications/{app_id}/rpc")
+        req = urllib.request.Request(url)
         req.add_header('User-Agent', 'discord-rpc/1.0')
         with urllib.request.urlopen(req) as response:
             if response.status == 200:
                 return json.loads(response.read().decode('utf-8'))
     except Exception as e:
-        log.error(f"Failed to fetch application info: {e}")
-    return {}
+        log.error(f"Failed to fetch application data: {e}")
+    return None
+
+def get_app_info(app_id:int) -> dict:
+    return _fetch_json(f"https://discord.com/api/v10/applications/{app_id}/rpc") or {}
 
 def get_assets(app_id:int) -> list:
-    try:
-        req = urllib.request.Request(f"https://discord.com/api/v10/oauth2/applications/{app_id}/assets")
-        req.add_header('User-Agent', 'discord-rpc/1.0')
-        with urllib.request.urlopen(req) as response:
-            if response.status == 200:
-                return json.loads(response.read().decode('utf-8'))
-    except Exception as e:
-        log.error(f"Failed to fetch application assets: {e}")
-    return []
+    return _fetch_json(f"https://discord.com/api/v10/oauth2/applications/{app_id}/assets") or []

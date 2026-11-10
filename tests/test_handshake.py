@@ -64,6 +64,15 @@ class HandshakeTests(unittest.TestCase):
         with self.assertRaises(InvalidID):
             pipe.handshake()
 
+    def test_close_with_invalid_client_id_raises_invalid_id(self):
+        # Real Discord answers a bad client ID with OP_CLOSE, not an ERROR frame
+        pipe = self._pipe_with([
+            (OP_CLOSE, {"code": 4000, "message": "Invalid Client ID"})
+        ])
+        with self.assertRaises(InvalidID):
+            pipe.handshake()
+        self.assertFalse(pipe.connected)
+
     def test_unknown_error_raises_rpc_exception(self):
         pipe = self._pipe_with([
             (OP_FRAME, {"cmd": "DISPATCH", "evt": "ERROR", "data": {"code": 1002, "message": "Something else"}})

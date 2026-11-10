@@ -4,6 +4,7 @@ import struct
 import threading
 import time
 import unittest
+from unittest import mock
 
 from discordrpc.exceptions import InvalidEvent, InvalidEventType
 from discordrpc.presence import _BasePipe, OP_FRAME, RPC
@@ -73,6 +74,7 @@ def make_rpc():
     rpc._user_data = {"id": "1", "username": "seno"}
     rpc._app_info = None
     rpc.is_running = False
+    rpc._disconnected = False
     rpc._event_callbacks = {}
     rpc._subscriptions = set()
     rpc._state_lock = threading.Lock()
@@ -138,33 +140,14 @@ class ReaderLifecycleTests(unittest.TestCase):
         thread.join(timeout=2)
         self.assertFalse(thread.is_alive())
 
-    def test_stop_reader_when_last_subscription_removed(self):
+    def test_last_unsubscribe_keeps_connection(self):
         rpc = make_rpc()
-        rpc.ipc._start_reader()
-        thread = rpc.ipc._reader_thread
-        # Simulate subscriptions present, then removed.
-        with rpc._state_lock:
-            rpc._subscriptions.add("ACTIVITY_JOIN")
-        with rpc._state_lock:
-            rpc._subscriptions.discard("ACTIVITY_JOIN")
-        rpc._stop_reader_if_idle()
-        rpc.ipc._close()
-        thread.join(timeout=2)
-        self.assertFalse(thread.is_alive())
-
-    def test_stop_reader_marks_pipe_disconnected(self):
-        rpc = make_rpc()
-        rpc.ipc._start_reader()
-        thread = rpc.ipc._reader_thread
-        with rpc._state_lock:
-            rpc._subscriptions.add("ACTIVITY_JOIN")
-        with rpc._state_lock:
-            rpc._subscriptions.discard("ACTIVITY_JOIN")
-        rpc._stop_reader_if_idle()
-        thread.join(timeout=2)
-        self.assertFalse(thread.is_alive())
-        # The pipe must be marked disconnected so a later set_activity() can reconnect.
-        self.assertFalse(rpc.ipc.connected)
+        self.assertTrue(rpc.subscribe(Event.JOIN))
+        self.assertTrue(rpc.unsubscribe(Event.JOIN))
+        # Closing here would wipe the user's presence on Discord
+        self.assertTrue(rpc.ipc.connected)
+        self.assertTrue(rpc.ipc._reader_thread.is_alive())
+        rpc.ipc._reader_stop.set()
 
 
 class DuplicateHandlerTests(unittest.TestCase):
@@ -196,6 +179,154 @@ class DuplicateHandlerTests(unittest.TestCase):
         # Second subscribe for the same event should be a no-op but still True,
         # so @rpc.on() can stack another handler.
         self.assertTrue(rpc.subscribe(Event.JOIN))
+
+
+class ReconnectTests(unittest.TestCase):
+    def test_subscribe_reconnects_when_pipe_disconnected(self):
+        rpc = make_rpc()
+        rpc.ipc.connected = False
+        rpc._setup = lambda: setattr(rpc.ipc, "connected", True)
+        self.assertTrue(rpc.subscribe(Event.JOIN))
+        self.assertTrue(rpc.ipc.connected)
+
+    def test_unsubscribe_reconnects_when_pipe_disconnected(self):
+        rpc = make_rpc()
+        with rpc._state_lock:
+            rpc._subscriptions.add("ACTIVITY_JOIN")
+            rpc._event_callbacks["ACTIVITY_JOIN"] = []
+        rpc.ipc.connected = False
+        rpc._setup = lambda: setattr(rpc.ipc, "connected", True)
+        self.assertTrue(rpc.unsubscribe(Event.JOIN))
+        self.assertTrue(rpc.ipc.connected)
+
+    def test_unsubscribe_not_subscribed_returns_false(self):
+        rpc = make_rpc()
+        self.assertFalse(rpc.unsubscribe(Event.JOIN))
+
+    def test_disconnect_clears_state_when_pipe_already_disconnected(self):
+        rpc = make_rpc()
+        rpc.is_running = True
+        with rpc._state_lock:
+            rpc._subscriptions.add("ACTIVITY_JOIN")
+            rpc._event_callbacks["ACTIVITY_JOIN"] = [lambda d: None]
+        rpc.ipc.connected = False
+        rpc.disconnect()
+        self.assertFalse(rpc.is_running)
+        self.assertFalse(rpc._subscriptions)
+        self.assertFalse(rpc._event_callbacks)
+
+    def test_run_exits_after_heartbeat_failure(self):
+        rpc = make_rpc()
+        calls = []
+
+        def fail_send(payload, op=1):
+            raise RuntimeError("boom")
+
+        def spy_disconnect():
+            calls.append("disconnect")
+            RPC.disconnect(rpc)
+
+        rpc.ipc._send = fail_send
+        rpc.disconnect = spy_disconnect
+
+        thread = threading.Thread(
+            target=rpc.run, kwargs={"update_every": 0.05, "ping_every": 0.1}, daemon=True
+        )
+        thread.start()
+        thread.join(timeout=2)
+        self.assertFalse(thread.is_alive())
+        self.assertIn("disconnect", calls)
+
+    def _start_run(self, rpc):
+        thread = threading.Thread(
+            target=rpc.run, kwargs={"update_every": 0.05, "ping_every": 10}, daemon=True
+        )
+        thread.start()
+        return thread
+
+    def test_run_exits_when_discord_closes_socket(self):
+        rpc = make_rpc()
+        calls = []
+        rpc.ipc.disconnect = lambda: calls.append("ipc.disconnect")
+        rpc.ipc._start_reader()
+        rpc.ipc._in.put(b"")  # EOF: Discord closed the socket
+        thread = self._start_run(rpc)
+        thread.join(timeout=2)
+        self.assertFalse(thread.is_alive())
+        # ipc.disconnect() is what honors exit_on_disconnect
+        self.assertEqual(calls, ["ipc.disconnect"])
+
+    def test_run_exits_when_disconnect_called_from_another_thread(self):
+        rpc = make_rpc()
+        thread = self._start_run(rpc)
+        rpc.disconnect()  # e.g. from an event callback on the reader thread
+        thread.join(timeout=2)
+        self.assertFalse(thread.is_alive())
+
+
+    def test_subscribe_is_sent_again_after_reconnect(self):
+        rpc = make_rpc()
+        self.assertTrue(rpc.subscribe(Event.JOIN))
+        fresh = FakePipe()
+        fresh.handshake = lambda: {"id": "1", "username": "seno"}
+        with mock.patch("discordrpc.presence.UnixPipe", return_value=fresh), \
+                mock.patch("discordrpc.presence.WindowsPipe", return_value=fresh):
+            rpc._setup()
+        self.assertTrue(rpc.subscribe(Event.JOIN))
+        sent = [json.loads(f[8:]) for f in list(fresh._out.queue)]
+        self.assertIn("SUBSCRIBE", [p.get("cmd") for p in sent])
+        fresh._reader_stop.set()
+
+
+class CallbackRequestTests(unittest.TestCase):
+    def test_set_activity_inside_callback_does_not_time_out(self):
+        rpc = make_rpc()
+        result = []
+
+        def on_join(data):
+            start = time.time()
+            result.append((rpc.set_activity(state="joined"), time.time() - start))
+
+        with rpc._state_lock:
+            rpc._event_callbacks["ACTIVITY_JOIN"] = [on_join]
+        rpc.ipc._start_reader()
+        rpc.ipc._in.put(build_frame(OP_FRAME, {"cmd": "DISPATCH", "evt": "ACTIVITY_JOIN", "data": {}}))
+        deadline = time.time() + 5
+        while not result and time.time() < deadline:
+            time.sleep(0.05)
+        rpc.ipc._reader_stop.set()
+        self.assertTrue(result, "callback never finished")
+        ok, elapsed = result[0]
+        self.assertTrue(ok)
+        self.assertLess(elapsed, 2)
+
+
+class ClosePipe(FakePipe):
+    def _close(self):
+        # Closing the socket wakes the blocked reader with EOF right away
+        self._in.put(b"")
+        time.sleep(0.3)
+
+
+class OwnDisconnectTests(unittest.TestCase):
+    def test_own_disconnect_is_not_closed_by_discord(self):
+        pipe = ClosePipe()
+        pipe._start_reader()
+        pipe.disconnect()
+        self.assertFalse(pipe.closed_by_discord)
+
+
+class SmallApiTests(unittest.TestCase):
+    def test_clear_returns_result(self):
+        rpc = make_rpc()
+        self.assertTrue(rpc.clear())
+
+    def test_user_reflects_late_handshake(self):
+        rpc = make_rpc()
+        rpc._user_data = None
+        self.assertIsNone(rpc.User.username)
+        rpc._user_data = {"id": "2", "username": "later"}
+        self.assertEqual(rpc.User.username, "later")
 
 
 if __name__ == "__main__":

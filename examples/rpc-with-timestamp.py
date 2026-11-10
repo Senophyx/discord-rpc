@@ -1,6 +1,6 @@
 import discordrpc
 
-# Import timestamp variable from discordrpc.utils to get current timestamp
+# Import timestamp function from discordrpc.utils to get current timestamp
 from discordrpc.utils import timestamp
 
 
@@ -10,8 +10,8 @@ rpc.set_activity(
       name="Timestamp Example",
       state="With timestamp!",
       details="Timestamp",
-      ts_start=timestamp, # Timestamp start
-      ts_end=1752426021 # Timestamp end
+      ts_start=timestamp(), # Timestamp start
+      ts_end=timestamp() + 3600 # Timestamp end (one hour from now)
     )
 
 

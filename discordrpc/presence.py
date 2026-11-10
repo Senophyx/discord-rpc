@@ -8,7 +8,7 @@ import threading
 import queue
 from typing import Optional
 from .exceptions import (
-    RPCException, InvalidID, DiscordNotOpened,
+    RPCException, InvalidID, DiscordNotOpened, ActivityError,
     ButtonError, InvalidActivityType, ActivityTypeDisabled,
     InvalidEvent, InvalidEventType,
 )
@@ -18,11 +18,20 @@ from functools import cached_property
 import logging
 import time
 
+if sys.platform == "win32":
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+    _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
 OP_HANDSHAKE = 0
 OP_FRAME = 1
 OP_CLOSE = 2
 OP_PING = 3
 OP_PONG = 4
+
+# Long on purpose: Discord has been seen taking 17s to answer after many reconnects
+HANDSHAKE_TIMEOUT = 30
 
 ### Logger ###
 log = logging.getLogger("Discord RPC")
@@ -52,12 +61,17 @@ class RPC:
             log.disabled = True
 
         self.is_running = False
+        self._disconnected = False
         self._event_callbacks = {}
         self._subscriptions = set()
         self._state_lock = threading.Lock()
         self._setup()
 
     def _setup(self):
+        # A new pipe starts with no subscriptions on Discord's side
+        with self._state_lock:
+            self._subscriptions.clear()
+
         if sys.platform == "win32":
             self.ipc = WindowsPipe(self.app_id, self.exit_if_discord_close, self.exit_on_disconnect)
         else:
@@ -70,7 +84,7 @@ class RPC:
     @property
     def connected(self): return self.ipc.connected
 
-    @cached_property
+    @property
     def User(self):
         return User(self._user_data)
 
@@ -110,19 +124,28 @@ class RPC:
         if act_type in [Activity.Streaming, Activity.Custom]:
             raise ActivityTypeDisabled()
 
+        # Accepts a StatusDisplay member or its int value; anything else raises ValueError
+        status_type = StatusDisplay(status_type)
+
         if buttons and len(buttons) > 2:
             raise ButtonError("Max 2 buttons allowed")
 
-        # Validate button URLs so invalid URLs are caught client-side instead of
-        # being silently rejected by Discord (or missing from the presence).
+        # Check what Discord would reject, so the caller gets an error instead of a
+        # silent False. Limits verified against the real client.
+        for field, value in (("state", state), ("details", details)):
+            if value is not None and not 2 <= len(value) <= 128:
+                raise ActivityError(f"{field} must be 2 to 128 characters, got {len(value)}")
+
         if buttons:
-            buttons = [
-                {
-                    "label": item.get("label") if isinstance(item, dict) else None,
-                    "url": required_url(item.get("url") if isinstance(item, dict) else item),
-                }
-                for item in buttons
-            ]
+            if join_secret or spectate_secret or match_secret:
+                raise ButtonError("Buttons cannot be combined with join, spectate, or match secrets")
+            for item in buttons:
+                label = item.get("label") if isinstance(item, dict) else None
+                if not isinstance(label, str) or not 1 <= len(label) <= 32:
+                    raise ButtonError("Each button needs a label of 1 to 32 characters, use button(text, url)")
+                if len(required_url(item.get("url"))) > 512:
+                    raise ButtonError("Button URL must be at most 512 characters")
+            buttons = [{"label": item["label"], "url": item["url"]} for item in buttons]
 
         large_image = large_image.name if isinstance(large_image, Asset) else large_image
         small_image = small_image.name if isinstance(small_image, Asset) else small_image
@@ -196,18 +219,20 @@ class RPC:
             return False
 
 
-    def clear(self):
-        self.set_activity(clear=True)
+    def clear(self) -> Optional[bool]:
+        return self.set_activity(clear=True)
 
     def disconnect(self):
+        self.is_running = False
+        self._disconnected = True
+        with self._state_lock:
+            self._subscriptions.clear()
+            self._event_callbacks.clear()
+
         if not self.ipc.connected:
             return
 
         self.ipc.disconnect()
-        self.is_running = False
-        with self._state_lock:
-            self._subscriptions.clear()
-            self._event_callbacks.clear()
 
     def _normalize_event(self, event):
         if isinstance(event, Event):
@@ -221,6 +246,9 @@ class RPC:
 
     def subscribe(self, event) -> Optional[bool]:
         event = self._normalize_event(event)
+
+        if not self.ipc.connected and self.try_reconnecting:
+            self._setup()
 
         if not self.ipc.connected:
             return
@@ -245,13 +273,16 @@ class RPC:
     def unsubscribe(self, event) -> Optional[bool]:
         event = self._normalize_event(event)
 
+        if not self.ipc.connected and self.try_reconnecting:
+            self._setup()
+
         if not self.ipc.connected:
             return
 
         with self._state_lock:
             if event not in self._subscriptions:
                 log.error(f"Event {event} not subscribed")
-                return
+                return False
 
         payload = {"cmd": "UNSUBSCRIBE", "args": {}, "evt": event, "nonce": str(uuid.uuid4())}
         res = self.ipc._request(payload)
@@ -263,7 +294,6 @@ class RPC:
             self._subscriptions.discard(event)
             self._event_callbacks.pop(event, [])
         log.info(f"Unsubscribed from {event}")
-        self._stop_reader_if_idle()
         return True
 
     def on(self, event: Event):
@@ -280,17 +310,6 @@ class RPC:
 
         return decorator
 
-    def _stop_reader_if_idle(self):
-        with self._state_lock:
-            idle = not self._subscriptions
-        if idle and self.ipc._reader_thread and self.ipc._reader_thread.is_alive():
-            self.ipc._reader_stop.set()
-            try:
-                self.ipc._close()
-            except Exception:
-                pass
-            self.ipc.connected = False
-
     def _dispatch(self, evt: str, data: dict):
         with self._state_lock:
             callbacks = list(self._event_callbacks.get(evt, []))
@@ -301,11 +320,26 @@ class RPC:
                 log.exception("Error in '%s' event callback", evt)
 
     def run(self, update_every:int=1, ping_every:int=15):
+        self._disconnected = False
         try:
             last_ping = time.time()
             while True:
                 time.sleep(update_every)
-                
+
+                if self.ipc.closed_by_discord and not self._disconnected:
+                    log.warning("Discord closed the connection")
+                    self.disconnect()
+                    # disconnect() skips the pipe once it is marked disconnected
+                    self.ipc.disconnect()
+                    break
+
+                # disconnect() from another thread (e.g. an event callback) can only
+                # sys.exit() that thread, so the main loop has to honor it here
+                if self._disconnected:
+                    if self.exit_on_disconnect:
+                        sys.exit()
+                    break
+
                 # Send a PING heartbeat every `ping_every` seconds to keep the socket alive
                 if self.ipc.connected and (time.time() - last_ping >= ping_every):
                     payload = {"v": 1, "client_id": self.app_id}
@@ -315,6 +349,7 @@ class RPC:
                     except Exception as e:
                         log.error(f"Heartbeat PING failed: {e}")
                         self.disconnect()
+                        break
         except KeyboardInterrupt:
             self.disconnect()
 
@@ -324,6 +359,8 @@ class _BasePipe:
         self.app_id = app_id
         self.exit_if_discord_close = exit_if_discord_close
         self.exit_on_disconnect = exit_on_disconnect
+        self.closed_by_discord = False
+        self._read_timeout = None
         self.connected = self._connect_pipe()
         self._write_lock = threading.Lock()
         self._pending_requests = {}
@@ -400,10 +437,19 @@ class _BasePipe:
                 frame = self._read_frame()
             except Exception as e:
                 log.debug(f"IPC reader stopping: {e}")
+                # A read error after our own stop request is not Discord closing
+                if not self._reader_stop.is_set():
+                    self.closed_by_discord = True
+                self.connected = False
                 break
             if frame is None:
                 continue
             opcode, payload = frame
+            if opcode == OP_CLOSE:
+                log.debug("Received OP_CLOSE from Discord")
+                self.closed_by_discord = True
+                self.connected = False
+                break
             if payload is None:
                 continue
             if not isinstance(payload, dict):
@@ -420,12 +466,15 @@ class _BasePipe:
                         pending.put((opcode, payload))
                         continue
                 if payload.get("cmd") == "DISPATCH":
-                    self._on_event(payload.get("evt"), payload.get("data") or {})
+                    # Off the reader thread: a callback that calls set_activity() needs
+                    # this thread free to read the reply. shortcut: one thread per event,
+                    # so callbacks may overlap; use a queue if events ever get frequent
+                    threading.Thread(
+                        target=self._on_event,
+                        args=(payload.get("evt"), payload.get("data") or {}),
+                        daemon=True,
+                    ).start()
                 continue
-            if opcode == OP_CLOSE:
-                log.debug("Received OP_CLOSE from Discord")
-                self.connected = False
-                break
 
     def _on_event(self, evt, data):
         """Override in subclass or by RPC to dispatch events."""
@@ -473,13 +522,26 @@ class _BasePipe:
     def handshake(self):
         self._send({'v': 1, 'client_id': self.app_id}, OP_HANDSHAKE)
 
-        opcode, payload = self._read_frame()
+        self._set_read_timeout(HANDSHAKE_TIMEOUT)
+        try:
+            opcode, payload = self._read_frame()
+        except (socket.timeout, TimeoutError):
+            self.connected = False
+            raise RPCException(f"Handshake timed out: Discord did not answer within {HANDSHAKE_TIMEOUT} seconds")
+        finally:
+            self._set_read_timeout(None)
+
         if payload is None:
             raise RPCException("Handshake did not receive a READY event")
 
         if opcode == OP_CLOSE:
+            # Discord rejects a bad client ID with OP_CLOSE {"code": 4000, ...}
             self.connected = False
-            raise RPCException("Handshake closed by Discord before READY")
+            data = payload if isinstance(payload, dict) else {}
+            self._handle_handshake_error({
+                "code": data.get("code"),
+                "error": data.get("message") or "Handshake closed by Discord before READY",
+            })
 
         if not isinstance(payload, dict):
             raise RPCException("Handshake did not receive a READY event")
@@ -503,13 +565,14 @@ class _BasePipe:
         raise RPCException("Handshake did not receive a READY event")
 
     def disconnect(self):
+        # Set before closing so the reader does not mistake our close for Discord's
+        self._reader_stop.set()
         try:
             self._send({}, OP_CLOSE)
             self._close()
         except Exception as e:
             log.debug("Socket closed before command was received: %s", e)
 
-        self._reader_stop.set()
         self._close_pending()
         reader = self._reader_thread
         if reader and reader.is_alive() and reader is not threading.current_thread():
@@ -533,6 +596,10 @@ class _BasePipe:
         """Override in subclass to close the socket."""
         raise NotImplementedError
 
+    def _set_read_timeout(self, timeout):
+        """Seconds a read may wait for data; None waits forever."""
+        self._read_timeout = timeout
+
 
 class WindowsPipe(_BasePipe):
     def _connect_pipe(self):
@@ -542,13 +609,10 @@ class WindowsPipe(_BasePipe):
             path = base_path.format(i)
 
             try:
-                self.socket = open(path, "w+b")
+                # Unbuffered: a buffered file would hide bytes from PeekNamedPipe
+                self.socket = open(path, "w+b", buffering=0)
             except OSError as e:
-                if self.exit_if_discord_close:
-                    log.debug("Failed to open {!r}: {}".format(path, e))
-                    raise DiscordNotOpened()
-                else:
-                    log.debug("Discord seems to be close.")
+                log.debug("Failed to open {!r}: {}".format(path, e))
             else:
                 break
 
@@ -563,14 +627,32 @@ class WindowsPipe(_BasePipe):
         return True
 
     def _write(self, data: bytes):
-        self.socket.write(data)
-        self.socket.flush()
+        view = memoryview(data)
+        while view:
+            view = view[self.socket.write(view):]
 
     def _close(self):
         self.socket.close()
 
+    def _available(self) -> int:
+        available = wintypes.DWORD()
+        handle = msvcrt.get_osfhandle(self.socket.fileno())
+        if not _kernel32.PeekNamedPipe(handle, None, 0, None, ctypes.byref(available), None):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return available.value
+
     def _read_some(self, size: int) -> bytes:
-        return self.socket.read(size) or b""
+        # A blocking ReadFile on a synchronous pipe handle blocks every WriteFile on
+        # that handle until data arrives, so only read once bytes are waiting
+        deadline = None if self._read_timeout is None else time.time() + self._read_timeout
+        while not self._reader_stop.is_set():
+            available = self._available()
+            if available:
+                return self.socket.read(min(size, available)) or b""
+            if deadline is not None and time.time() >= deadline:
+                raise TimeoutError("Timed out waiting for Discord")
+            time.sleep(0.01)
+        return b""
 
 
 class UnixPipe(_BasePipe):
@@ -584,15 +666,17 @@ class UnixPipe(_BasePipe):
             or os.environ.get('TEMP')
             or '/tmp'
         ).rstrip('/')
-        base_path = raw_path + '/discord-ipc-{0}'
+        candidates = [
+            f"{raw_path}/{sub}discord-ipc-{i}"
+            for i in range(10)
+            for sub in ("", "app/com.discordapp.Discord/")  # host first, then Flatpak sandbox
+        ]
 
-        for i in range(10):
-            path = base_path.format(i)
-
+        for path in candidates:
             try:
                 self.socket.connect(path)
                 break
-            except FileNotFoundError:
+            except OSError:
                 pass
 
         else:
@@ -609,8 +693,14 @@ class UnixPipe(_BasePipe):
         self.socket.sendall(data)
 
     def _close(self):
-        self.socket.shutdown(socket.SHUT_RDWR)
+        try:
+            self.socket.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
         self.socket.close()
 
     def _read_some(self, size: int) -> bytes:
         return self.socket.recv(size)
+
+    def _set_read_timeout(self, timeout):
+        self.socket.settimeout(timeout)

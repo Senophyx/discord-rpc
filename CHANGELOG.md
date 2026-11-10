@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [7.0] - 2026-11-10
+
+### Breaking
+- `utils.timestamp` is now a function, not a variable. Update `timestamp` to `timestamp()` in your code.
+- `subscribe()` and `unsubscribe()` now raise `DiscordNotOpened` when Discord is closed and `exit_if_discord_close=True` (the default), instead of returning `None`. Catch it or pass `exit_if_discord_close=False` to keep the old behavior.
+- `set_activity()` now raises `ActivityError` when `state` or `details` is outside 2 to 128 characters, and `ButtonError` when a button has no label, a label over 32 characters, a URL over 512 characters, is a plain URL string, or is combined with `join_secret`, `spectate_secret`, or `match_secret`. Discord rejected all of these before; the library now says why instead of returning `False`.
+- Event callbacks now run on their own thread instead of the IPC reader thread, so callbacks for events that arrive close together can run at the same time.
+- `Application.public` is now `None` when Discord does not report it, instead of `False`.
+
+### Added
+- Unix pipe connect now also tries the Flatpak Discord socket at `$XDG_RUNTIME_DIR/app/com.discordapp.Discord/discord-ipc-N` (PR [#71](https://github.com/Senophyx/discord-rpc/pull/71) by @orowith2os)
+
+### Fixed
+- `disconnect()` now clears `is_running`, subscriptions, and callbacks even when the pipe was already disconnected
+- Unix pipe connect now falls back cleanly on any socket error (not just missing pipe)
+- `unsubscribe()` now returns `False` (instead of `None`) when the event is not subscribed
+- Unix pipe close no longer raises when Discord already closed the socket
+- `run()` now exits its loop when the heartbeat PING fails, instead of hanging forever when `exit_on_disconnect=False`
+- `run()` now also stops when Discord closes the connection (exits when `exit_on_disconnect=True`, returns otherwise), instead of looping forever when `exit_on_disconnect=False`
+- `subscribe()` and `unsubscribe()` now attempt to reconnect when the pipe is disconnected, instead of silently returning `None`
+- Windows: a second `set_activity()`, the `run()` heartbeat, `unsubscribe()`, and `disconnect()` no longer hang while the reader waits for data on the named pipe
+- Windows: connect now tries all 10 Discord pipes even when `exit_if_discord_close=True`, instead of giving up after `discord-ipc-0`
+- An invalid application ID now raises `InvalidID`, matching how Discord actually rejects it (an `OP_CLOSE` frame with code 4000)
+- Calling `set_activity()`, `subscribe()`, or `unsubscribe()` inside an event callback no longer times out after 10 seconds
+- Calling `disconnect()` from another thread, such as an event callback, now also stops `run()`
+- `subscribe()` after a reconnect now subscribes again on Discord's side, instead of returning `True` without sending anything
+- Unsubscribing from the last event no longer closes the connection and wipes the presence
+- The handshake now gives up after 30 seconds with an `RPCException`, instead of waiting forever when Discord does not answer
+- `clear()` now returns the result of `set_activity()` instead of `None`
+- `status_type` now accepts the plain int value, instead of raising `AttributeError`
+- `rpc.User` read before the handshake no longer stays empty after connecting
+- `examples/rpc-all-in-one.py` is no longer rejected by Discord, and `examples/rpc-with-timestamp.py` now ends one hour in the future instead of in July 2025
+- `progress_bar()` now raises `ProgressbarError` when `current` is negative or `duration` is zero/negative
+- `AssetManager()` no longer raises `TypeError` when constructed without an asset list
+- IPC reader now marks the pipe as disconnected when the socket is closed by Discord (EOF) or an `OP_CLOSE` frame with an empty payload is received, instead of stopping silently while `connected` stays `True`
+
+### Changed
+- `ButtonError` and `ProgressbarError` no longer define redundant constructors
+- `date_to_timestamp()` now uses `datetime.timestamp()` instead of `time.mktime()`
+- `get_app_info()` and `get_assets()` now share a single fetch helper
+
 ## [6.5] - 2026-08-05
 
 ### Added
